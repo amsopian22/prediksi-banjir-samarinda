@@ -90,7 +90,20 @@ def predict_flood(model_pack, input_data):
     probabilitas = model.predict_proba(df_input)[0][1]
     status = "BAHAYA BANJIR" if probabilitas >= threshold else "AMAN"
     
-    return status, probabilitas, threshold, akumulasi_3hari
+    # XAI: Hitung Kontribusi Fitur
+    # Contribution = Value * Coefficient
+    feature_names = model_pack["features"]
+    coefficients = model.coef_[0]
+    
+    contributions = {}
+    for name, coef in zip(feature_names, coefficients):
+        val = df_input[name].iloc[0]
+        contributions[name] = val * coef
+        
+    # Sort contributions descending
+    sorted_contributions = dict(sorted(contributions.items(), key=lambda item: item[1], reverse=True))
+    
+    return status, probabilitas, threshold, akumulasi_3hari, sorted_contributions
 
 # --- UI UTAMA ---
 
@@ -123,25 +136,45 @@ if model_pack:
         input_data["hujan_kemarin"] = st.sidebar.number_input("Curah Hujan Kemarin (mm)", 0.0, 200.0, 20.0)
         input_data["hujan_lusa"] = st.sidebar.number_input("Curah Hujan Lusa Kemarin (mm)", 0.0, 200.0, 10.0)
 
-    # --- FEEDBACK FORM ---
+    # --- HUMAN-IN-THE-LOOP FEEDBACK ---
     st.sidebar.divider()
-    st.sidebar.header("📝 Lapor Kondisi Aktual")
-    actual_status = st.sidebar.selectbox("Kondisi Lapangan:", ["Aman", "Banjir"])
-    user_comment = st.sidebar.text_area("Keterangan Tambahan:")
+    st.sidebar.header("🙋‍♂️ Human-in-the-Loop")
+    st.sidebar.caption("Bantu kami meningkatkan akurasi model. Apakah kondisi lapangan sesuai prediksi?")
     
-    if st.sidebar.button("Kirim Laporan"):
+    col_fb1, col_fb2 = st.sidebar.columns(2)
+    
+    report_status = None
+    if col_fb1.button("🚨 Lapor Banjir"):
+        report_status = "Banjir"
+    
+    if col_fb2.button("✅ Lapor Aman"):
+        report_status = "Aman"
+        
+    if report_status:
         if input_data:
             # Hitung prediksi saat ini untuk log
-            pred_status, pred_prob, _, _ = predict_flood(model_pack, input_data)
+            pred_status, pred_prob, _, _, _ = predict_flood(model_pack, input_data)
             
             feedback_data = {
                 "Waktu": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "Prediksi_Model": pred_status,
                 "Probabilitas": f"{pred_prob*100:.1f}%",
-                "Kondisi_Aktual": actual_status,
+                "Kondisi_Aktual": report_status,
                 "Curah_Hujan_Hari_Ini": input_data.get('hujan_hari_ini', 0),
-                "Keterangan": user_comment
+                "Keterangan": "Quick Report (Human-in-the-Loop)"
             }
+            
+            feedback_file = "feedback_log.csv"
+            feedback_df = pd.DataFrame([feedback_data])
+            
+            if not os.path.exists(feedback_file):
+                feedback_df.to_csv(feedback_file, index=False)
+            else:
+                feedback_df.to_csv(feedback_file, mode='a', header=False, index=False)
+                
+            st.sidebar.success(f"Laporan '{report_status}' tersimpan! Terima kasih.")
+        else:
+            st.sidebar.error("Data input belum tersedia.")
             
             feedback_file = "feedback_log.csv"
             feedback_df = pd.DataFrame([feedback_data])
@@ -158,7 +191,7 @@ if model_pack:
     # --- MAIN CONTENT ---
     if input_data:
         # Lakukan Prediksi
-        status, prob, threshold, akumulasi = predict_flood(model_pack, input_data)
+        status, prob, threshold, akumulasi, contributions = predict_flood(model_pack, input_data)
         
         # 1. Status Banner
         if status == "BAHAYA BANJIR":
@@ -201,6 +234,47 @@ if model_pack:
             ))
             st.plotly_chart(fig)
             
+            # --- XAI SECTION ---
+            st.subheader("🔍 Analisis Faktor Penyebab")
+            
+            # Ambil top contributor
+            top_feature = list(contributions.keys())[0]
+            top_val = input_data.get(top_feature, 0)
+            
+            # Mapping nama fitur ke label user-friendly
+            feature_labels = {
+                'curah_hujan_mm': 'Curah Hujan Hari Ini',
+                'durasi_hujan_jam': 'Durasi Hujan',
+                'hujan_kemarin': 'Hujan Kemarin',
+                'hujan_akumulasi_3hari': 'Tanah Jenuh (Akumulasi 3 Hari)'
+            }
+            
+            st.info(f"**Kontributor Utama:** {feature_labels.get(top_feature, top_feature)}")
+            
+            # Tampilkan breakdown
+            for feature, contrib in contributions.items():
+                fname = feature_labels.get(feature, feature)
+                fval = 0
+                
+                # Ambil nilai asli (perlu handling khusus karena input_data mungkin beda key dengan feature name di model)
+                if feature == 'curah_hujan_mm': fval = input_data['hujan_hari_ini']
+                elif feature == 'durasi_hujan_jam': fval = input_data['durasi_hari_ini']
+                elif feature == 'hujan_kemarin': fval = input_data['hujan_kemarin']
+                elif feature == 'hujan_akumulasi_3hari': fval = akumulasi
+                
+                # Label Kualitatif Sederhana
+                qual_label = ""
+                if "hujan" in feature or "akumulasi" in feature:
+                    if fval > 100: qual_label = "(Sangat Tinggi)"
+                    elif fval > 50: qual_label = "(Tinggi)"
+                    elif fval > 20: qual_label = "(Sedang)"
+                    else: qual_label = "(Rendah)"
+                
+                # Bar progress untuk kontribusi (normalisasi visual saja)
+                # Kita pakai st.progress atau st.caption
+                st.write(f"- **{fname}**: {fval:.1f} {qual_label}")
+                # st.caption(f"Kontribusi Model: {contrib:.2f}") # Optional: tampilkan skor mentah
+            
         with col_map:
             st.markdown("**Lokasi Pantauan: Samarinda**")
             
@@ -231,7 +305,7 @@ if model_pack:
             for i, day_data in enumerate(weather_data_list):
                 with cols[i]:
                     # Predict for this day
-                    d_status, d_prob, _, _ = predict_flood(model_pack, day_data)
+                    d_status, d_prob, _, _, _ = predict_flood(model_pack, day_data)
                     
                     # Formatting date
                     date_obj = datetime.datetime.strptime(day_data['tanggal'], "%Y-%m-%d")
