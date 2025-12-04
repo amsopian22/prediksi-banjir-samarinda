@@ -185,8 +185,7 @@ if model_pack:
                 feedback_df.to_csv(feedback_file, mode='a', header=False, index=False)
                 
             st.sidebar.success("Laporan terkirim! Terima kasih.")
-        else:
-            st.sidebar.error("Data input belum tersedia.")
+
 
     # --- MAIN CONTENT ---
     if input_data:
@@ -392,7 +391,7 @@ if model_pack:
             history_df = pd.read_csv(history_file)
             # Sort by time desc
             history_df = history_df.sort_values(by="Waktu", ascending=False)
-            st.dataframe(history_df, use_container_width=True)
+            st.dataframe(history_df, width='stretch')
 
 
 
