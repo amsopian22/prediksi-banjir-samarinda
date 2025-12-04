@@ -30,34 +30,42 @@ def load_model():
     return joblib.load(MODEL_PATH)
 
 def fetch_weather_data():
-    """Mengambil data cuaca real-time dari Open-Meteo."""
+    """Mengambil data cuaca real-time dari Open-Meteo untuk 7 hari kedepan."""
     params = {
         "latitude": LAT,
         "longitude": LON,
         "daily": ["precipitation_sum", "precipitation_hours"],
         "timezone": "Asia/Singapore",
         "past_days": 2,
-        "forecast_days": 1
+        "forecast_days": 7
     }
     try:
         response = requests.get(OPEN_METEO_URL, params=params)
         data = response.json()
         
         daily = data["daily"]
+        forecast_list = []
         
-        # Mapping data
-        hujan_lusa = daily["precipitation_sum"][0]
-        hujan_kemarin = daily["precipitation_sum"][1]
-        hujan_hari_ini = daily["precipitation_sum"][2]
-        durasi_hari_ini = daily["precipitation_hours"][2]
-        
-        return {
-            "hujan_hari_ini": hujan_hari_ini,
-            "durasi_hari_ini": durasi_hari_ini,
-            "hujan_kemarin": hujan_kemarin,
-            "hujan_lusa": hujan_lusa,
-            "tanggal": daily["time"][2]
-        }
+        # Loop untuk 7 hari kedepan (Index 2 sampai 8)
+        # Index 0: H-2, Index 1: H-1, Index 2: H-0 (Hari ini), ..., Index 8: H+6
+        for i in range(7):
+            idx_today = i + 2
+            
+            hujan_lusa = daily["precipitation_sum"][idx_today - 2]
+            hujan_kemarin = daily["precipitation_sum"][idx_today - 1]
+            hujan_hari_ini = daily["precipitation_sum"][idx_today]
+            durasi_hari_ini = daily["precipitation_hours"][idx_today]
+            tanggal = daily["time"][idx_today]
+            
+            forecast_list.append({
+                "hujan_hari_ini": hujan_hari_ini,
+                "durasi_hari_ini": durasi_hari_ini,
+                "hujan_kemarin": hujan_kemarin,
+                "hujan_lusa": hujan_lusa,
+                "tanggal": tanggal
+            })
+            
+        return forecast_list
     except Exception as e:
         st.error(f"Gagal mengambil data cuaca: {e}")
         return None
@@ -101,11 +109,12 @@ if model_pack:
     
     if mode == "Otomatis (Real-time)":
         st.sidebar.info("Mengambil data langsung dari Open-Meteo API.")
-        weather_data = fetch_weather_data()
+        weather_data_list = fetch_weather_data()
         
-        if weather_data:
-            input_data = weather_data
-            st.sidebar.success(f"Data terupdate: {weather_data['tanggal']}")
+        if weather_data_list:
+            # Ambil data hari ini (elemen pertama) untuk input utama
+            input_data = weather_data_list[0]
+            st.sidebar.success(f"Data terupdate: {input_data['tanggal']}")
             
     else: # Mode Manual
         st.sidebar.warning("Mode Simulasi Aktif.")
@@ -113,6 +122,38 @@ if model_pack:
         input_data["durasi_hari_ini"] = st.sidebar.number_input("Durasi Hujan (jam)", 0.0, 24.0, 5.0)
         input_data["hujan_kemarin"] = st.sidebar.number_input("Curah Hujan Kemarin (mm)", 0.0, 200.0, 20.0)
         input_data["hujan_lusa"] = st.sidebar.number_input("Curah Hujan Lusa Kemarin (mm)", 0.0, 200.0, 10.0)
+
+    # --- FEEDBACK FORM ---
+    st.sidebar.divider()
+    st.sidebar.header("📝 Lapor Kondisi Aktual")
+    actual_status = st.sidebar.selectbox("Kondisi Lapangan:", ["Aman", "Banjir"])
+    user_comment = st.sidebar.text_area("Keterangan Tambahan:")
+    
+    if st.sidebar.button("Kirim Laporan"):
+        if input_data:
+            # Hitung prediksi saat ini untuk log
+            pred_status, pred_prob, _, _ = predict_flood(model_pack, input_data)
+            
+            feedback_data = {
+                "Waktu": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Prediksi_Model": pred_status,
+                "Probabilitas": f"{pred_prob*100:.1f}%",
+                "Kondisi_Aktual": actual_status,
+                "Curah_Hujan_Hari_Ini": input_data.get('hujan_hari_ini', 0),
+                "Keterangan": user_comment
+            }
+            
+            feedback_file = "feedback_log.csv"
+            feedback_df = pd.DataFrame([feedback_data])
+            
+            if not os.path.exists(feedback_file):
+                feedback_df.to_csv(feedback_file, index=False)
+            else:
+                feedback_df.to_csv(feedback_file, mode='a', header=False, index=False)
+                
+            st.sidebar.success("Laporan terkirim! Terima kasih.")
+        else:
+            st.sidebar.error("Data input belum tersedia.")
 
     # --- MAIN CONTENT ---
     if input_data:
@@ -179,7 +220,34 @@ if model_pack:
             # st.map automatically uses 'size' and 'color' columns if present
             st.map(map_data, zoom=11, size='size', color='color')
 
-        # 4. Detail Table
+        # 4. 7-Day Forecast Section
+        if mode == "Otomatis (Real-time)" and 'weather_data_list' in locals() and weather_data_list:
+            st.divider()
+            st.subheader("📅 Prediksi 7 Hari Kedepan")
+            
+            # Create columns for 7 days
+            cols = st.columns(7)
+            
+            for i, day_data in enumerate(weather_data_list):
+                with cols[i]:
+                    # Predict for this day
+                    d_status, d_prob, _, _ = predict_flood(model_pack, day_data)
+                    
+                    # Formatting date
+                    date_obj = datetime.datetime.strptime(day_data['tanggal'], "%Y-%m-%d")
+                    date_str = date_obj.strftime("%d %b")
+                    day_name = date_obj.strftime("%A")
+                    
+                    # Color coding
+                    status_color = "red" if d_status == "BAHAYA BANJIR" else "green"
+                    
+                    st.markdown(f"**{day_name}**")
+                    st.markdown(f"_{date_str}_")
+                    st.markdown(f":{status_color}[**{d_status}**]")
+                    st.markdown(f"Prob: {d_status == 'BAHAYA BANJIR' and '**' or ''}{d_prob*100:.0f}%{d_status == 'BAHAYA BANJIR' and '**' or ''}")
+                    st.caption(f"Hujan: {day_data['hujan_hari_ini']}mm")
+
+        # 5. Detail Table
         st.subheader("📋 Detail Data Input")
         detail_df = pd.DataFrame({
             "Parameter": ["Curah Hujan Hari Ini", "Durasi Hujan Hari Ini", "Curah Hujan Kemarin", "Curah Hujan Lusa Kemarin", "Total Akumulasi 3 Hari"],
@@ -251,6 +319,8 @@ if model_pack:
             # Sort by time desc
             history_df = history_df.sort_values(by="Waktu", ascending=False)
             st.dataframe(history_df, use_container_width=True)
+
+
 
 else:
     st.warning("Silakan train model terlebih dahulu.")
