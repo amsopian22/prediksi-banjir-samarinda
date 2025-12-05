@@ -301,24 +301,32 @@ if model_pack:
             # Create columns for 7 days
             cols = st.columns(7)
             
+            # Translation mapping
+            days_id = {
+                "Monday": "Senin", "Tuesday": "Selasa", "Wednesday": "Rabu", 
+                "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
+            }
+
             for i, day_data in enumerate(weather_data_list):
                 with cols[i]:
-                    # Predict for this day
-                    d_status, d_prob, _, _, _ = predict_flood(model_pack, day_data)
-                    
-                    # Formatting date
-                    date_obj = datetime.datetime.strptime(day_data['tanggal'], "%Y-%m-%d")
-                    date_str = date_obj.strftime("%d %b")
-                    day_name = date_obj.strftime("%A")
-                    
-                    # Color coding
-                    status_color = "red" if d_status == "BAHAYA BANJIR" else "green"
-                    
-                    st.markdown(f"**{day_name}**")
-                    st.markdown(f"_{date_str}_")
-                    st.markdown(f":{status_color}[**{d_status}**]")
-                    st.markdown(f"Prob: {d_status == 'BAHAYA BANJIR' and '**' or ''}{d_prob*100:.0f}%{d_status == 'BAHAYA BANJIR' and '**' or ''}")
-                    st.caption(f"Hujan: {day_data['hujan_hari_ini']}mm")
+                    with st.container(border=True):
+                        # Predict for this day
+                        d_status, d_prob, _, _, _ = predict_flood(model_pack, day_data)
+                        
+                        # Formatting date
+                        date_obj = datetime.datetime.strptime(day_data['tanggal'], "%Y-%m-%d")
+                        date_str = date_obj.strftime("%d %b")
+                        day_name_en = date_obj.strftime("%A")
+                        day_name_id = days_id.get(day_name_en, day_name_en)
+                        
+                        # Color coding
+                        status_color = "red" if d_status == "BAHAYA BANJIR" else "green"
+                        
+                        st.markdown(f"**{day_name_id}**")
+                        st.caption(f"{date_str}")
+                        st.markdown(f":{status_color}[**{d_status}**]")
+                        st.markdown(f"**{d_prob*100:.0f}%**")
+                        st.caption(f"Hujan: {day_data['hujan_hari_ini']}mm")
 
         # 5. Detail Table
         st.subheader("📋 Detail Data Input")
