@@ -7,3 +7,12 @@ fastapi
 uvicorn
 pydantic
 scikit-learn
+utide
+openmeteo-requests
+requests-cache
+retry-requests
+pysheds
+rasterio
+geopandas
+shapely
+scipy
