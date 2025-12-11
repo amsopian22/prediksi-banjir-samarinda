@@ -32,8 +32,12 @@ def load_custom_css():
             backdrop-filter: blur(5px);
             -webkit-backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            padding: 24px;
-            margin-bottom: 20px;
+            padding: 30px;
+            margin-bottom: 25px;
+            min-height: 200px; /* Ensure visual balance */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         
         /* Typography */
@@ -60,10 +64,10 @@ def load_custom_css():
 
         /* Hero Status Banner */
         .hero-banner {
-            padding: 30px;
+            padding: 40px;
             border-radius: 20px;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
@@ -71,19 +75,19 @@ def load_custom_css():
         }
         
         .hero-status-text {
-            font-size: 3.5rem; 
+            font-size: 4rem; 
             font-weight: 800;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
             text-transform: uppercase;
             margin: 0;
-            line-height: 1.2;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            line-height: 1.1;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.6);
         }
         
         .hero-subtext {
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             color: #ccc;
-            margin-top: 10px;
+            margin-top: 15px;
             max-width: 800px;
             margin-left: auto;
             margin-right: auto;
@@ -93,9 +97,10 @@ def load_custom_css():
         .metric-card {
             background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
             border-radius: 16px;
-            padding: 4px; /* Border gradient wrapper */
+            padding: 2px; /* Border gradient wrapper */
             box-shadow: 0 4px 20px rgba(0,0,0,0.2);
             height: 100%;
+            min-height: 140px;
             transition: transform 0.2s;
         }
         
@@ -110,7 +115,8 @@ def load_custom_css():
             height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: center; /* Center content vertically */
+            align-items: flex-start;
         }
 
         .metric-title {
@@ -153,75 +159,75 @@ def load_custom_css():
         </style>
     """, unsafe_allow_html=True)
 
-def render_executive_summary(curr_prob: float, curr_tide: float, hourly_risk_df: pd.DataFrame):
+
+def render_executive_summary(assessment: dict):
     """
     Renders the Executive Summary section as a Hero Banner.
     """
-    # Determine Level & Recommendation
-    prob_pct = curr_prob * 100
+    # Extract Data
+    level = assessment.get("level", "UNKNOWN")
+    label = assessment.get("label", "Unknown")
+    color = assessment.get("color", "gray")
+    rec_text = assessment.get("recommendation", "Tidak ada data.")
     
-    # Default Levels
-    if prob_pct < 20:
-        level = "NORMAL"
-        badge_color = config.COLOR_PALETTE["status_safe"]
-        rec_text = "✅ <b>Kondisi Kondusif</b>. Lakukan pemantauan rutin. Tidak ada ancaman banjir signifikan."
-        icon = "🛡️"
-        pulse_class = ""
-    elif prob_pct < 50:
-        level = "WASPADA"
-        badge_color = config.COLOR_PALETTE["status_warning"]
-        rec_text = "⚠️ <b>Monitor Intensif</b>. Cek kondisi pintu air dan drainase utama. Perintahkan tim lapangan standby."
+    # Map color names to hex/palette
+    badge_color = "gray"
+    if color == "green": badge_color = config.COLOR_PALETTE["status_safe"]
+    elif color == "yellow": badge_color = config.COLOR_PALETTE["status_warning"]
+    elif color == "orange": badge_color = "#ff9800" # Orange
+    elif color == "red": badge_color = config.COLOR_PALETTE["status_danger"]
+
+    # Icons & Pulse
+    icon = "🛡️"
+    pulse_class = ""
+    bg_gradient = "linear-gradient(90deg, #1c2541 0%, #0b1021 100%)"
+    
+    if level == "NORMAL":
+        icon = "✅"
+    elif level == "WASPADA":
         icon = "⚠️"
-        pulse_class = ""
-    elif prob_pct < 80:
-        level = "SIAGA"
-        badge_color = "orange"
-        rec_text = "🟠 <b>Siagakan Personil</b>. Aktifkan pompa pengendali banjir. Informasikan Camat & Lurah di wilayah rawan."
+    elif level == "SIAGA":
         icon = "📢"
         pulse_class = "pulse"
-    else:
-        level = "AWAS"
-        badge_color = config.COLOR_PALETTE["status_danger"]
-        rec_text = "🚨 <b>BAHAYA BANJIR</b>. <b>AKTIFKAN POSKO DARURAT</b>. Segera mobilisasi evakuasi warga di titik rendah (< 5 mdpl)."
-        icon = "🚨"
-        pulse_class = "pulse"
-    
-    # --- HARD RULE OVERRIDES ---
-    # 1. Physical Tide
-    if curr_tide >= config.THRESHOLD_TIDE_PHYSICAL_DANGER:
-        level = "AWAS (ROB)"
-        badge_color = config.COLOR_PALETTE["status_danger"]
-        rec_text = f"🚨 <b>PERINGATAN FISIK</b>: Tinggi pasang (<b>{curr_tide:.2f}m</b>) sangat tinggi. Banjir Rob tak terelakkan. <b>EVAKUASI WARGA</b>."
-        pulse_class = "pulse"
-    elif curr_tide >= config.THRESHOLD_TIDE_LOW_RISK and curr_tide < config.THRESHOLD_TIDE_PHYSICAL_DANGER:
-        level = "SIAGA (PASANG)"
-        badge_color = "orange"
-        rec_text = f"🟠 <b>PERINGATAN FISIK</b>: Pasang naik (<b>{curr_tide:.2f}m</b>). Genangan air di jalan rendah."
-        pulse_class = ""
-
-    # Render Hero HTML
-    # Gradient Logic based on level
-    bg_gradient = "linear-gradient(90deg, #1c2541 0%, #0b1021 100%)" # Default
-    text_color = badge_color
-    
-    if "AWAS" in level:
-        bg_gradient = "linear-gradient(90deg, rgba(213, 0, 0, 0.2) 0%, rgba(11, 16, 33, 0.8) 100%)"
-        pulse_class = "pulse-red"
-    elif "SIAGA" in level:
         bg_gradient = "linear-gradient(90deg, rgba(255, 109, 0, 0.15) 0%, rgba(11, 16, 33, 0.8) 100%)"
-        pulse_class = ""
-        
+    elif level == "AWAS":
+        icon = "🚨"
+        pulse_class = "pulse-red"
+        bg_gradient = "linear-gradient(90deg, rgba(213, 0, 0, 0.2) 0%, rgba(11, 16, 33, 0.8) 100%)"
+
     st.markdown(f"""
         <div class="hero-banner {pulse_class}" style="background: {bg_gradient}; border-left: 5px solid {badge_color};">
             <div style="margin-bottom: 10px; font-size: 0.9rem; letter-spacing: 3px; color: #8b9bb4; text-transform: uppercase;">STATUS SISTEM PERINGATAN DINI</div>
-            <h1 class="hero-status-text" style="color: {text_color};">{level}</h1>
+            <h1 class="hero-status-text" style="color: {badge_color};">{label}</h1>
             <div class="hero-subtext">
                 {icon} {rec_text}
             </div>
         </div>
     """, unsafe_allow_html=True)
+
+def render_risk_context(assessment: dict):
+    """
+    Displays the 'Why' (Reasoning) and 'Action' (Recommendation) in a structured way.
+    """
+    col1, col2 = st.columns(2)
     
-# ... (render_metrics was here, simplified by previous edit, skipping re-definition)
+    with col1:
+        st.markdown(f"""
+        <div class="glass-card">
+            <h3 style="margin-top:0;">🔍 Analisis Penyebab</h3>
+            <p style="font-size: 1.1rem; font-weight: 500; color: #ffcc80;">{assessment.get('main_factor', '-')}</p>
+            <p style="font-size: 0.9rem; color: #b0bec5;">{assessment.get('reasoning', '-')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown(f"""
+        <div class="glass-card">
+            <h3 style="margin-top:0;">📋 Rekomendasi Tindakan</h3>
+            <p style="font-size: 1rem; color: #e0e0e0; line-height: 1.6;">{assessment.get('recommendation', '-')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
 
 # ... (render_hourly_chart ... fetch_radar_timestamp ... render_map_simulation)
 

@@ -109,14 +109,12 @@ if mode == "Real-time Monitoring":
             now = pd.Timestamp.now(tz=config.TIMEZONE)
             current_row = hourly_risk_df.iloc[(hourly_risk_df['time'] - now).abs().argsort()[:1]]
             
+
             if not current_row.empty:
                 curr_prob = current_row['probability'].values[0]
                 curr_status = current_row['status'].values[0]
                 curr_rain_24h = current_row['rain_rolling_24h'].values[0]
                 curr_tide = current_row['est'].values[0]
-                
-                # Initialize tma_benanga for real-time mode (REMOVED as per user request)
-                # tma_benanga = 6.80 
                 
                 # --- UI Simulation Controls (for overriding real-time values) ---
                 with st.sidebar:
@@ -130,55 +128,51 @@ if mode == "Real-time Monitoring":
                         # Update current variables for simulation context
                         curr_rain_24h = sim_rain
                         curr_tide = sim_tide
-                        # tma_benanga = sim_benanga
                         
-                        # Prepare Input for Model V2
-                        sim_input_for_model = {
-                            "rain_sum_imputed": curr_rain_24h, 
-                            "rain_intensity_max": current_row['precipitation'].values[0] if not current_row.empty else 0,
-                            "soil_moisture_surface_mean": sim_soil,
-                            "soil_moisture_root_mean": sim_soil, # Simplified assumption
-                            "pasut_msl_max": curr_tide,
-                            "hujan_lag1": 0,
-                            "hujan_lag2": 0
-                        }
-                        
-                        # Re-calculate Prediction
-                        v2_cols = [
-                            'rain_sum_imputed', 'rain_intensity_max', 
-                            'soil_moisture_surface_mean', 'soil_moisture_root_mean', 
-                            'pasut_msl_max', 'hujan_lag1', 'hujan_lag2'
-                        ]
-                        input_df = pd.DataFrame([sim_input_for_model])[v2_cols]
-                        
-                        try:
-                            model = model_pack["model"] 
-                            prob_val = model.predict_proba(input_df)[0][1]
-                            curr_prob = prob_val
-                            curr_status = "Siaga" if curr_prob > config.THRESHOLD_FLOOD_PROBABILITY else "Aman"
-                        except Exception as e:
-                            logging.error(f"Prediction Error V2: {e}")
-                            curr_prob = 0.0
-                            curr_status = "Error"
-                        
-                        st.toast(f"Simulasi Aktif: Hujan {sim_rain}mm, Pasang {sim_tide}m, Soil {sim_soil}")
+                        st.session_state['sim_active'] = True
+                        st.session_state['sim_rain'] = sim_rain
+                        st.session_state['sim_tide'] = sim_tide
+                        st.session_state['sim_soil'] = sim_soil
+                        st.rerun()
+
+                # Apply Simulation State if Active
+                if st.session_state.get('sim_active'):
+                    curr_rain_24h = st.session_state['sim_rain']
+                    curr_tide = st.session_state['sim_tide']
+                    sim_soil = st.session_state['sim_soil']
+                    st.sidebar.toast(f"✅ Simulasi Aktif: Hujan {curr_rain_24h}mm, Pasang {curr_tide}m")
+
+                # Prepare Data for Full Assessment (Real-time or Simulated)
+                # Getting soil moisture default
+                current_soil = current_row.get('soil_moisture_surface', 0.45)
+                # Use simulated soil if active, else real
+                final_soil = sim_soil if st.session_state.get('sim_active') else current_soil if isinstance(current_soil, float) else 0.45
+
+                input_data_pack = {
+                    "rain_sum_imputed": curr_rain_24h,
+                    "rain_intensity_max": current_row['precipitation'].values[0] if not current_row.empty else 0,
+                    "soil_moisture_surface_mean": final_soil,
+                    "soil_moisture_root_mean": final_soil,
+                    "pasut_msl_max": curr_tide,
+                    "hujan_lag1": 0, "hujan_lag2": 0 # Real-time simplification
+                }
                 
-                # Logic for Soil Moisture Value
-                if 'sim_input_for_model' in locals():
-                    sm_val = sim_input_for_model['soil_moisture_surface_mean']
-                else:
-                    sm_val = current_row['soil_moisture_surface'].values[0] if 'soil_moisture_surface' in current_row else 0.45
+                # Get Full Assessment
+                assessment = model_utils.predict_flood(model_pack, input_data_pack)
+                curr_prob = assessment['probability']
+                curr_status = assessment['label']
 
                 # --- VISUALISASI MENGGUNAKAN UI_COMPONENTS ---
                 
-                # 1. Executive Summary
-                ui_components.render_executive_summary(curr_prob, curr_tide, hourly_risk_df)
+                # 1. Executive Summary (New Signature)
+                ui_components.render_executive_summary(assessment)
                 
-                # 2. Metrics (Original + Gauge + Soil REPLACED BENANGA)
-                tide_status = "Normal" if curr_tide < config.THRESHOLD_TIDE_PHYSICAL_DANGER else "Bahaya"
-                ui_components.render_metrics(curr_status, curr_rain_24h, curr_tide, tide_status, sm_val)
+                # 2. Key Metrics
+                tide_status = "Bahaya" if curr_tide >= config.THRESHOLD_TIDE_PHYSICAL_DANGER else "Normal"
+                ui_components.render_metrics(curr_status, curr_rain_24h, curr_tide, tide_status, final_soil)
                 
-                # Metric Soil Moisture (Standalone removed, integrated above)
+                # 3. Risk Context (Why & How) -- NEW
+                ui_components.render_risk_context(assessment)
                 
                 st.markdown("---")
                 
@@ -187,7 +181,7 @@ if mode == "Real-time Monitoring":
                 with col_filter:
                     selected_date = st.date_input("📅 Filter Tanggal Simulasi & Detail:", value=pd.Timestamp.now().date())
                 
-                # 3. Split Layout: Map & Charts
+                # 4. Split Layout: Map & Charts
                 col_main_1, col_main_2 = st.columns([1.5, 1])
                 
                 with col_main_1:
@@ -212,11 +206,9 @@ if mode == "Real-time Monitoring":
                         with st.expander("📄 Data Detail Per Jam"):
                              st.dataframe(filtered_df[['time', 'status', 'probability', 'rain_rolling_24h', 'est']], use_container_width=True)
 
-                # 5. 7-Day Forecast (Simplified here, logic usually same)
-                # 5. 7-Day Forecast (Simplified here, logic usually same)
+                # 5. 7-Day Forecast
                 st.divider()
                 st.subheader("📅 Prediksi 7 Hari Ke Depan")
-                # Date filter moved to top
                 
                 hourly_df['date_only'] = hourly_df['time'].dt.date
                 daily_groups = hourly_df.groupby('date_only')
@@ -227,26 +219,38 @@ if mode == "Real-time Monitoring":
                     daily_rain = group['precipitation'].sum()
                     daily_max_tide = group['est'].max()
                     
-                    lag1 = lags_lookup.get(date_val, {}).get('hujan_lag1', 0)
-                    lag2 = lags_lookup.get(date_val, {}).get('hujan_lag2', 0)
-                    lag3 = lags_lookup.get(date_val, {}).get('hujan_lag3', 0)
-                    
+                    # Approximated Daily Input
                     d_input = {
-                        "hujan_hari_ini": daily_rain,
-                        "durasi_hari_ini": (group['precipitation']>0).sum(),
+                        "rain_sum_imputed": daily_rain,
+                        "rain_intensity_max": group['precipitation'].max(),
+                        "soil_moisture_surface_mean": 0.5, # Avg assumption
                         "pasut_msl_max": daily_max_tide,
-                        "pasut_slope": 0,
-                        "hujan_lag1": lag1, "hujan_lag2": lag2, "hujan_lag3": lag3
+                        "hujan_lag1": 0, "hujan_lag2": 0
                     }
-                    d_status, d_prob, _, _, _ = model_utils.predict_flood(model_pack, d_input)
+                    
+                    # Predict using new function
+                    d_assess = model_utils.predict_flood(model_pack, d_input)
+                    d_status = d_assess['label']
+                    d_prob = d_assess['probability']
+                    d_color = d_assess['color']
                     
                     with cols[idx]:
                         date_str = config.format_id_date(date_val)
                         st.markdown(f"**{date_str}**")
-                        if d_status == "BAHAYA BANJIR":
-                            st.error(f"{d_status}\n{d_prob*100:.0f}%")
+                        
+                        # Map color to UI style
+                        status_class = "success"
+                        if d_color == "yellow": status_class = "warning"
+                        elif d_color == "orange": status_class = "error" # Streamlit has no orange alert
+                        elif d_color == "red": status_class = "error"
+                        
+                        if status_class == "success":
+                            st.success(f"{d_status}\n{d_prob*100:.0f}%")
+                        elif status_class == "warning":
+                            st.warning(f"{d_status}\n{d_prob*100:.0f}%")
                         else:
-                            st.success(f"AMAN\n{d_prob*100:.0f}%")
+                            st.error(f"{d_status}\n{d_prob*100:.0f}%")
+                            
                         st.caption(f"🌧️ {daily_rain:.1f}mm\n🌊 {daily_max_tide:.1f}m")
                     idx += 1
 
@@ -280,16 +284,23 @@ else: # Mode Simulasi
             "pasut_slope": 0.1, # Mock
             "hujan_lag1": lag1,
             "hujan_lag2": lag2,
-            "hujan_lag3": lag3
+            "hujan_lag3": lag3,
+            # Params for V2 compatibility
+            "rain_sum_imputed": hujan,
+            "rain_intensity_max": hujan/durasi if durasi > 0 else 0,
+            "soil_moisture_surface_mean": 0.5,
+            "soil_moisture_root_mean": 0.5
         }
         
-        status, prob, thresh, akum, contrib = model_utils.predict_flood(model_pack, sim_input)
+        assessment = model_utils.predict_flood(model_pack, sim_input)
         
-        st.metric("Status Prediksi", status)
-        st.metric("Probabilitas", f"{prob*100:.2f}%")
+        # Display Result using new components
+        ui_components.render_executive_summary(assessment)
+        ui_components.render_risk_context(assessment)
         
+        st.divider()
         st.caption("Kontribusi Fitur:")
-        st.json(contrib)
+        st.json(assessment.get("contributions", {}))
 
 st.markdown("---")
 st.caption("Supported by: Utide (Tidal Analysis), Open-Meteo (Weather), & Scikit-Learn (ML).")
