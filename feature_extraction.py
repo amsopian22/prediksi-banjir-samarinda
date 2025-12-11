@@ -10,6 +10,7 @@ from scipy.spatial import cKDTree
 import config
 import logging
 from typing import Dict, Optional, Tuple
+import os
 
 # Setup Logging
 logger = logging.getLogger(__name__)

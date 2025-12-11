@@ -48,7 +48,7 @@ ui_components.load_custom_css() # Inject Modern CSS
 # Header (Minimalist)
 st.markdown('<div style="margin-top: -60px;"></div>', unsafe_allow_html=True) # Spacer hack
 st.markdown('<h1 class="hero-title">Sistem Peringatan Dini Banjir</h1>', unsafe_allow_html=True)
-st.markdown('<p style="font-size: 1.2rem; opacity: 0.8; margin-bottom: 30px;">Dashboard Eksekutif Walikota Samarinda</p>', unsafe_allow_html=True)
+st.markdown('<p style="font-size: 1.2rem; opacity: 0.8; margin-bottom: 30px;">Dashboard Eksekutif Pantau Kota Samarinda</p>', unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 st.sidebar.header("⚙️ Konfigurasi")
@@ -74,7 +74,7 @@ if spatial_extractor:
 
 if mode == "Real-time Monitoring":
     # 1. Fetch Weather
-    weather_df = weather_fetcher.fetch_hourly_data(lat=lat, lon=lon)
+    weather_df = weather_fetcher.fetch_weather_data(lat=lat, lon=lon)
     
     if not weather_df.empty:
         # 2. Predict Tides
@@ -115,8 +115,8 @@ if mode == "Real-time Monitoring":
                 curr_rain_24h = current_row['rain_rolling_24h'].values[0]
                 curr_tide = current_row['est'].values[0]
                 
-                # Initialize tma_benanga for real-time mode
-                tma_benanga = 6.80 
+                # Initialize tma_benanga for real-time mode (REMOVED as per user request)
+                # tma_benanga = 6.80 
                 
                 # --- UI Simulation Controls (for overriding real-time values) ---
                 with st.sidebar:
@@ -124,35 +124,61 @@ if mode == "Real-time Monitoring":
                     st.subheader("⚙️ Simulasi Data")
                     sim_rain = st.slider("Simulasi Hujan (mm/hari)", 0, 200, int(curr_rain_24h))
                     sim_tide = st.slider("Simulasi Pasang (meter)", 0.0, 4.0, float(curr_tide))
-                    sim_benanga = st.number_input("TMA Bendungan Benanga (meter)", min_value=0.0, max_value=12.0, value=6.80, step=0.1)
+                    sim_soil = st.slider("Simulasi Kelembaban Tanah", 0.0, 1.0, 0.45)
                     
                     if st.button("Update Situasi"):
                         # Update current variables for simulation context
                         curr_rain_24h = sim_rain
                         curr_tide = sim_tide
-                        tma_benanga = sim_benanga
+                        # tma_benanga = sim_benanga
                         
-                        # Recalculate AI Prediction based on simulation
+                        # Prepare Input for Model V2
                         sim_input_for_model = {
-                            "hujan_hari_ini": sim_rain,
-                            "durasi_hari_ini": 1,
-                            "pasut_msl_max": sim_tide,
-                            "pasut_slope": 0.1, 
-                            "hujan_lag1": lags_lookup.get(now.date(), {}).get('hujan_lag1', 0),
-                            "hujan_lag2": lags_lookup.get(now.date(), {}).get('hujan_lag2', 0),
-                            "hujan_lag3": lags_lookup.get(now.date(), {}).get('hujan_lag3', 0)
+                            "rain_sum_imputed": curr_rain_24h, 
+                            "rain_intensity_max": current_row['precipitation'].values[0] if not current_row.empty else 0,
+                            "soil_moisture_surface_mean": sim_soil,
+                            "soil_moisture_root_mean": sim_soil, # Simplified assumption
+                            "pasut_msl_max": curr_tide,
+                            "hujan_lag1": 0,
+                            "hujan_lag2": 0
                         }
-                        curr_status, curr_prob, _, _, _ = model_utils.predict_flood(model_pack, sim_input_for_model)
                         
-                        st.toast(f"Data Diperbarui: Hujan {sim_rain}mm, Pasang {sim_tide}m")
+                        # Re-calculate Prediction
+                        v2_cols = [
+                            'rain_sum_imputed', 'rain_intensity_max', 
+                            'soil_moisture_surface_mean', 'soil_moisture_root_mean', 
+                            'pasut_msl_max', 'hujan_lag1', 'hujan_lag2'
+                        ]
+                        input_df = pd.DataFrame([sim_input_for_model])[v2_cols]
+                        
+                        try:
+                            model = model_pack[0] 
+                            prob_val = model.predict_proba(input_df)[0][1]
+                            curr_prob = prob_val
+                            curr_status = "Siaga" if curr_prob > config.THRESHOLD_FLOOD_PROBABILITY else "Aman"
+                        except Exception as e:
+                            logging.error(f"Prediction Error V2: {e}")
+                            curr_prob = 0.0
+                            curr_status = "Error"
+                        
+                        st.toast(f"Simulasi Aktif: Hujan {sim_rain}mm, Pasang {sim_tide}m, Soil {sim_soil}")
                 
-                # --- VISUALIZATION LAYOUT ---
+                # Logic for Soil Moisture Value
+                if 'sim_input_for_model' in locals():
+                    sm_val = sim_input_for_model['soil_moisture_surface_mean']
+                else:
+                    sm_val = current_row['soil_moisture_surface'].values[0] if 'soil_moisture_surface' in current_row else 0.45
+
+                # --- VISUALISASI MENGGUNAKAN UI_COMPONENTS ---
                 
-                # 1. Executive Summary (The Hero)
-                ui_components.render_executive_summary(curr_prob, curr_tide, tma_benanga, hourly_risk_df)
+                # 1. Executive Summary
+                ui_components.render_executive_summary(curr_prob, curr_tide, hourly_risk_df)
                 
-                # 2. Key Metrics Cards
-                ui_components.render_metrics(curr_status, curr_rain_24h, curr_tide, tide_status = "Normal" if curr_tide < config.THRESHOLD_TIDE_PHYSICAL_DANGER else "Bahaya", tma_benanga=tma_benanga)
+                # 2. Metrics (Original + Gauge + Soil REPLACED BENANGA)
+                tide_status = "Normal" if curr_tide < config.THRESHOLD_TIDE_PHYSICAL_DANGER else "Bahaya"
+                ui_components.render_metrics(curr_status, curr_rain_24h, curr_tide, tide_status, sm_val)
+                
+                # Metric Soil Moisture (Standalone removed, integrated above)
                 
                 st.markdown("---")
                 
@@ -173,12 +199,18 @@ if mode == "Real-time Monitoring":
                         ui_components.render_map_simulation(geojson_data, hourly_risk_df, lat, lon, selected_date=selected_date)
                         
                 with col_main_2:
-                    # Hourly Chart
-                    ui_components.render_hourly_chart(hourly_risk_df)
+                    # Filter Data based on Selected Date
+                    filtered_df = hourly_risk_df[hourly_risk_df['time'].dt.date == selected_date]
                     
-                    # Detail Table in Expander
-                    with st.expander("📄 Data Detail Per Jam"):
-                         st.dataframe(hourly_risk_df[['time', 'status', 'probability', 'rain_rolling_24h', 'est']], use_container_width=True)
+                    if filtered_df.empty:
+                        st.info(f"Tidak ada data untuk tanggal {config.format_id_date(selected_date)}.")
+                    else:
+                        # Hourly Chart
+                        ui_components.render_hourly_chart(filtered_df)
+                        
+                        # Detail Table in Expander
+                        with st.expander("📄 Data Detail Per Jam"):
+                             st.dataframe(filtered_df[['time', 'status', 'probability', 'rain_rolling_24h', 'est']], use_container_width=True)
 
                 # 5. 7-Day Forecast (Simplified here, logic usually same)
                 # 5. 7-Day Forecast (Simplified here, logic usually same)

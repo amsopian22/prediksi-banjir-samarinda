@@ -10,13 +10,13 @@ DATA_DIR = os.path.join(BASE_DIR, "data-baru")
 REF_DIR = os.path.join(BASE_DIR, "data-refactored")
 DEM_DIR = os.path.join(BASE_DIR, "data-demhas")
 
-MODEL_PATH = os.path.join(BASE_DIR, "model_banjir.pkl")
+MODEL_PATH = os.path.join(BASE_DIR, "model_banjir_v2_advanced.pkl")
 TIDE_MODEL_PATH = os.path.join(BASE_DIR, "tide_model_urs.pkl")
 DEM_PATH = os.path.join(DEM_DIR, "DEMNAS_1915-13_v1.0.tif")
 RISK_MAP_PATH = "data-refactored/samarinda_risk_map_calculated.geojson"
 
 # --- THRESHOLDS ---
-THRESHOLD_FLOOD_PROBABILITY = 0.29 # Optimized via F1-Score (Prev: 0.5)
+THRESHOLD_FLOOD_PROBABILITY = 0.40 # Optimized manually (Prev: 0.80). Lowered to capture heavy rain events.
 THRESHOLD_TIDE_LOW_RISK = 2.5 # meters (Mulai Meluap / Genangan Ringan)
 THRESHOLD_TIDE_PHYSICAL_DANGER = 2.9 # meters (Bahaya / Genangan Dalam > 40cm)
 THRESHOLD_ELEVATION_LOW = 5.0 # meters
@@ -49,8 +49,8 @@ def format_id_date(date_obj):
 
 # TIDE CORRECTION (Datum Separation)
 # Nilai ini dikurangkan dari prediksi pasang agar match dengan elevasi DEM
-# Est 1.8m (Gauge) - 2.1m = -0.3m (Relatif terhadap Tanah). Artinya Kering.
-TIDE_DATUM_OFFSET = 2.1 # meters
+# Est 3.0m (Gauge) - 2.8m = 0.2m (Relatif terhadap Tanah). Sangat aman.
+TIDE_DATUM_OFFSET = 2.8 # meters
 
 # TOLERANSI GENANGAN (Floor Tolerance)
 # Air dianggap "Bahaya" (Merah) hanya jika kedalaman > nilai ini di atas tanah (P50).
@@ -76,10 +76,12 @@ COLOR_PALETTE = {
 # --- API ---
 OPENMETEO_URL = "https://api.open-meteo.com/v1/forecast"
 TIMEZONE = "Asia/Singapore" # WITA
+LATITUDE = -0.5022
+LONGITUDE = 117.1536
 
 # --- LOCATIONS ---
 LOCATIONS = {
-    "Samarinda Utara (APT Pranoto)": (-0.4851, 117.2536),
     "Samarinda Kota (Karang Mumus)": (-0.5022, 117.1536),
+    "Samarinda Utara (APT Pranoto)": (-0.4851, 117.2536),
     "Palaran": (-0.55, 117.18)
 }

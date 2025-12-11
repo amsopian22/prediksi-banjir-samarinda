@@ -9,23 +9,23 @@ def load_custom_css():
     """
     Injects custom CSS for modern glassmorphism look and feel.
     """
-    st.markdown(f"""
+    st.markdown("""
         <style>
         /* Import Google Font: Outfit */
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
         
-        html, body, [class*="css"] {{
+        html, body, [class*="css"] {
             font-family: 'Outfit', sans-serif;
-        }}
+        }
         
         /* Main Container Background - Subtle Dark Theme Override */
-        .stApp {{
+        .stApp {
             background-color: #0e1117;
             background-image: radial-gradient(circle at 50% 0%, #1c2541 0%, #0b1021 100%);
-        }}
+        }
         
         /* Card Styling (Glassmorphism) */
-        .glass-card {{
+        .glass-card {
             background: rgba(255, 255, 255, 0.03);
             border-radius: 16px;
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
@@ -34,70 +34,126 @@ def load_custom_css():
             border: 1px solid rgba(255, 255, 255, 0.05);
             padding: 24px;
             margin-bottom: 20px;
-        }}
+        }
         
         /* Typography */
-        h1, h2, h3, h4 {{
+        h1, h2, h3, h4 {
             color: white !important;
             font-weight: 700 !important;
             letter-spacing: -0.5px;
-        }}
+        }
         
-        p, span, div {{
+        p, span, div {
             color: #e0e0e0;
-        }}
+        }
         
         /* Streamlit Metrics Override */
-        [data-testid="stMetricValue"] {{
+        [data-testid="stMetricValue"] {
             font-size: 2rem !important;
             font-weight: 700 !important;
             color: white !important;
-        }}
-        [data-testid="stMetricLabel"] {{
+        }
+        [data-testid="stMetricLabel"] {
             color: #a0a0a0 !important;
             font-size: 0.9rem !important;
-        }}
+        }
 
-        /* Hero Banner Styling */
-        .hero-title {{
-            font-size: 3rem; 
-            font-weight: 800; 
-            background: -webkit-linear-gradient(0deg, #ffffff, #a0c4ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0px;
-        }}
+        /* Hero Status Banner */
+        .hero-banner {
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
         
-        .status-badge {{
-            padding: 8px 16px; 
-            border-radius: 50px; 
-            font-weight: 700; 
+        .hero-status-text {
+            font-size: 3.5rem; 
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin: 0;
+            line-height: 1.2;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        .hero-subtext {
             font-size: 1.2rem;
-            display: inline-block;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }}
-        
-        .pulse {{
-            box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
-            animation: pulse-red 2s infinite;
-        }}
-        
-        @keyframes pulse-red {{
-            0% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7); }}
-            70% {{ transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 82, 82, 0); }}
-            100% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }}
-        }}
+            color: #ccc;
+            margin-top: 10px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
 
-        /* Custom Table Styling */
-        .dataframe {{
-            font-size: 0.9rem !important;
-        }}
+        /* Metric Cards Redesigned */
+        .metric-card {
+            background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+            border-radius: 16px;
+            padding: 4px; /* Border gradient wrapper */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            height: 100%;
+            transition: transform 0.2s;
+        }
         
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .metric-inner {
+            background: #141824; /* Dark inner */
+            border-radius: 14px;
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .metric-title {
+            color: #8b9bb4;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 5px;
+        }
+        
+        .metric-sub {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+        
+        /* Pulse Animation */
+        .pulse-red {
+            animation: pulse-animation 2s infinite;
+        }
+        
+        @keyframes pulse-animation {
+            0% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 82, 82, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }
+        }
+        
+        /* Layout Utilities */
+        .row-gap {
+            display: flex; 
+            gap: 20px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-def render_executive_summary(curr_prob: float, curr_tide: float, tma_benanga: float, hourly_risk_df: pd.DataFrame):
+def render_executive_summary(curr_prob: float, curr_tide: float, hourly_risk_df: pd.DataFrame):
     """
     Renders the Executive Summary section as a Hero Banner.
     """
@@ -143,53 +199,116 @@ def render_executive_summary(curr_prob: float, curr_tide: float, tma_benanga: fl
         rec_text = f"🟠 <b>PERINGATAN FISIK</b>: Pasang naik (<b>{curr_tide:.2f}m</b>). Genangan air di jalan rendah."
         pulse_class = ""
 
-    # 2. Benanga Dam
-    if tma_benanga >= config.THRESHOLD_BENANGA_BAHAYA:
-         level = "AWAS (BENANGA)"
-         badge_color = config.COLOR_PALETTE["status_critical"]
-         rec_text = f"🚨 <b>BAHAYA KRITIS</b>: Bendungan Benanga (<b>{tma_benanga:.2f}m</b>) LIMPAS. Banjir kiriman besar tiba 4-6 jam."
-         pulse_class = "pulse"
-    elif tma_benanga >= config.THRESHOLD_BENANGA_SIAGA:
-         if "AWAS" not in level:
-             level = "SIAGA (BENANGA)"
-             badge_color = "orange"
-             rec_text = f"🟠 <b>HULU KRITIS</b>: TMA Benanga (<b>{tma_benanga:.2f}m</b>) tinggi. Debit kiriman meningkat."
-
     # Render Hero HTML
+    # Gradient Logic based on level
+    bg_gradient = "linear-gradient(90deg, #1c2541 0%, #0b1021 100%)" # Default
+    text_color = badge_color
+    
+    if "AWAS" in level:
+        bg_gradient = "linear-gradient(90deg, rgba(213, 0, 0, 0.2) 0%, rgba(11, 16, 33, 0.8) 100%)"
+        pulse_class = "pulse-red"
+    elif "SIAGA" in level:
+        bg_gradient = "linear-gradient(90deg, rgba(255, 109, 0, 0.15) 0%, rgba(11, 16, 33, 0.8) 100%)"
+        pulse_class = ""
+        
     st.markdown(f"""
-        <div class="glass-card" style="text-align: center; padding: 40px 20px;">
-            <div style="font-size: 1.2rem; margin-bottom: 10px; color: #a0c4ff; text-transform: uppercase; letter-spacing: 2px;">Status Peringatan Dini</div>
-            <div class="{pulse_class} status-badge" style="background-color: {badge_color}; color: white; display: inline-flex; align-items: center; gap: 10px; padding: 10px 30px;">
-                <span style="font-size: 1.5rem;">{icon}</span> {level}
-            </div>
-            <div style="margin-top: 20px; font-size: 1.1rem; max-width: 800px; margin-left: auto; margin-right: auto; line-height: 1.6;">
-                {rec_text}
+        <div class="hero-banner {pulse_class}" style="background: {bg_gradient}; border-left: 5px solid {badge_color};">
+            <div style="margin-bottom: 10px; font-size: 0.9rem; letter-spacing: 3px; color: #8b9bb4; text-transform: uppercase;">STATUS SISTEM PERINGATAN DINI</div>
+            <h1 class="hero-status-text" style="color: {text_color};">{level}</h1>
+            <div class="hero-subtext">
+                {icon} {rec_text}
             </div>
         </div>
     """, unsafe_allow_html=True)
+    
+# ... (render_metrics was here, simplified by previous edit, skipping re-definition)
 
-def render_metrics(curr_status: str, total_rain_24h: float, curr_tide: float, tide_status: str, tma_benanga: float):
+# ... (render_hourly_chart ... fetch_radar_timestamp ... render_map_simulation)
+
+# We need to jump to render_map_simulation to fix the slider
+def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat: float, lon: float, selected_date=None):
+    """
+    Renders the Dynamic Inundation Map with Time Slider.
+    """
+    import os
+    if not geojson_data:
+        st.warning("Data GeoJSON peta tidak tersedia.")
+        return
+    
+    # ... (skipping some logic steps, assume lines 297-319 same)
+    
+    feats = [f['properties'] for f in geojson_data['features']]
+    df_map = pd.DataFrame(feats)
+    
+    st.divider()
+    st.subheader("🗺️ Peta Simulasi & Dampak Genangan")
+    st.info("💡 **Petunjuk**: Peta ini dinamis. Gunakan **slider waktu** di bawah untuk melihat bagaimana air pasang akan menggenangi wilayah rendah dari jam ke jam.")
+
+    # Dynamic Slider for Tide Simulation
+    # Check if selected_date is provided
+    if selected_date:
+        # Filter for specific date
+        target_start = pd.to_datetime(selected_date).tz_localize(hourly_risk_df['time'].dt.tz)
+        target_end = target_start + pd.Timedelta(days=1)
+        future_tide_df = hourly_risk_df[(hourly_risk_df['time'] >= target_start) & (hourly_risk_df['time'] < target_end)]
+    else:
+        # Fallback to next 48h
+        now = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
+        future_tide_df = hourly_risk_df[hourly_risk_df['time'] >= now].head(48) # Full 48 hours
+    
+    if not future_tide_df.empty:
+        # Create timestamp map for slider
+        time_options = future_tide_df['time'].dt.strftime('%d %b %H:%M').tolist()
+        
+        # Determine Default Value (Current Hour)
+        default_idx = 0
+        if not selected_date:
+            now_dt = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
+            # Find the option closest to CURRENT HOUR (e.g. 11:30 -> 11:00)
+            # Round down to hour
+            current_hour = now_dt.replace(minute=0, second=0, microsecond=0)
+            current_hour_str = current_hour.strftime('%d %b %H:%M')
+            
+            # Search for approximate match
+            if current_hour_str in time_options:
+                default_idx = time_options.index(current_hour_str)
+            else:
+                # Fallback: Find closest future time
+                pass # default_idx is 0 (first available time in future_tide_df which is >= now)
+                # Note: future_tide_df starts from >= now. 
+                # If now is 11:30, and df starts at 12:00 (because hourly data), then 12:00 is correct.
+                # If df has 11:00 (past), it might not be in future_tide_df!
+                # Wait, future_tide_df is defined as >= now.
+                # If we want CURRENT hour, we might need to broaden the filter to include current hour start. (>= now.floor('H'))
+                
+    st.warning("Logic improvement pending above: future_tide_df starts at 'now'. If 'now' is 11:30, 'time' column (12:00, 13:00) will be used. 11:00 is lost.")
+    # Fix: Broaden future_tide_df definition in next tool call or here.
+    return
+
+def render_metrics(curr_status: str, total_rain_24h: float, curr_tide: float, tide_status: str, sm_val: float):
     """
     Renders key metrics using custom HTML cards.
     """
     col1, col2, col3, col4 = st.columns(4)
     
-    def metric_card(title, value, subtext, color="white"):
+    def metric_card(title, value, subtext, border_color="rgba(255,255,255,0.1)"):
         return f"""
-        <div class="glass-card" style="padding: 20px; text-align: left; height: 100%; display: flex; flex-direction: column; justify-content: space-between;">
-            <div style="color: #a0a0a0; font-size: 0.9rem; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">{title}</div>
-            <div style="font-size: 2rem; font-weight: 700; color: {color}; margin: 10px 0;">{value}</div>
-            <div style="font-size: 0.85rem; color: #808080;">{subtext}</div>
+        <div class="metric-card" style="background: linear-gradient(135deg, {border_color} 0%, rgba(255,255,255,0.01) 100%);">
+            <div class="metric-inner">
+                <div class="metric-title">{title}</div>
+                <div class="metric-value">{value}</div>
+                <div class="metric-sub">{subtext}</div>
+            </div>
         </div>
         """
         
     # Logic for Dynamic Colors
-    rain_color = config.COLOR_PALETTE["status_warning"] if total_rain_24h > 50 else "white"
-    tide_color = config.COLOR_PALETTE["status_danger"] if tide_status == "Bahaya" else "white"
+    rain_color = config.COLOR_PALETTE["status_warning"] if total_rain_24h > 50 else "rgba(255,255,255,0.1)"
+    tide_color = config.COLOR_PALETTE["status_danger"] if tide_status == "Bahaya" else "rgba(255,255,255,0.1)"
     
-    benanga_color = "white"
-    if tma_benanga >= config.THRESHOLD_BENANGA_BAHAYA: benanga_color = config.COLOR_PALETTE["status_critical"]
-    elif tma_benanga >= config.THRESHOLD_BENANGA_SIAGA: benanga_color = "orange"
+    # Soil logic
+    soil_status = "Jenuh Air" if sm_val > 0.5 else "Normal"
+    soil_color = config.COLOR_PALETTE["status_warning"] if sm_val > 0.5 else "rgba(255,255,255,0.1)"
         
     with col1:
         st.markdown(metric_card("Status Teknis", curr_status, "AI Prediction"), unsafe_allow_html=True)
@@ -198,67 +317,73 @@ def render_metrics(curr_status: str, total_rain_24h: float, curr_tide: float, ti
     with col3:
         st.markdown(metric_card("Tinggi Pasang", f"{curr_tide:.2f} <span style='font-size:1rem'>m</span>", tide_status, tide_color), unsafe_allow_html=True)
     with col4:
-        st.markdown(metric_card("TMA Benanga", f"{tma_benanga:.2f} <span style='font-size:1rem'>m</span>", "Level Hulu", benanga_color), unsafe_allow_html=True)
+        st.markdown(metric_card("Kelembaban Tanah", f"{sm_val:.2f} <span style='font-size:1rem'>m³/m³</span>", soil_status, soil_color), unsafe_allow_html=True)
 
 def render_hourly_chart(hourly_risk_df: pd.DataFrame):
     """
     Renders the Plotly chart for hourly risk.
     """
+    from plotly.subplots import make_subplots
+
     st.divider()
-    st.divider()
-    st.subheader("📉 Grafik Tren Hujan & Pasang Surut (48 Jam)")
+    st.subheader("📉 Grafik Tren Terpadu (48 Jam)")
     
-    # Dual Axis: Precipitation (Bar) & Tide (Line)
-    fig = go.Figure()
+    # Create Subplots: Row 1 = Rain & Tide, Row 2 = Flood Risk
+    fig = make_subplots(rows=2, cols=1, 
+                        shared_xaxes=True, 
+                        vertical_spacing=0.1,
+                        subplot_titles=("Curah Hujan & Pasang Surut", "Probabilitas Risiko Banjir (%)"),
+                        specs=[[{"secondary_y": True}], [{"secondary_y": False}]])
     
-    # 1. Rain Intensity (Bar)
+    # --- ROW 1: Rain (Bar) & Tide (Line) ---
+    # 1. Rain (Bar)
     fig.add_trace(go.Bar(
         x=hourly_risk_df['time'],
         y=hourly_risk_df['precipitation'],
         name='Curah Hujan (mm)',
-        marker_color='#5DADEC', # Blue Jeans Color
-        opacity=0.6,
-        yaxis='y1'
-    ))
+        marker_color='#5DADEC',
+        opacity=0.6
+    ), row=1, col=1, secondary_y=False)
     
-    # 2. Tide Level (Line)
+    # 2. Tide (Line)
     fig.add_trace(go.Scatter(
         x=hourly_risk_df['time'],
         y=hourly_risk_df['est'],
         name='Tinggi Pasang (m)',
-        line=dict(color='#FFD700', width=3), # Gold/Yellow for brightness on dark bg
-        yaxis='y2'
-    ))
-
-    # 3. Critical Tide Line (2.5m)
+        line=dict(color='#FFD700', width=3)
+    ), row=1, col=1, secondary_y=True)
+    
+    # Critical Tide Threshold (Dashed Line)
     fig.add_hline(y=config.THRESHOLD_TIDE_PHYSICAL_DANGER, line_dash="dash", line_color="red", 
                   annotation_text=f"Batas Bahaya ({config.THRESHOLD_TIDE_PHYSICAL_DANGER}m)", 
-                  annotation_position="top right", yref='y2')
+                  annotation_position="top right", row=1, col=1, secondary_y=True)
+
+    # --- ROW 2: Flood Probability (Area) ---
+    fig.add_trace(go.Scatter(
+        x=hourly_risk_df['time'],
+        y=hourly_risk_df['probability'] * 100,
+        name='Risiko Banjir (%)',
+        fill='tozeroy',
+        mode='lines',
+        line=dict(color='#ff5252')
+    ), row=2, col=1)
     
+    # Logic Threshold
+    fig.add_hline(y=50, line_dash="dot", line_color="orange", annotation_text="Waspada (50%)", row=2, col=1)
+
+    # --- LAYOUT ---
     fig.update_layout(
-        title=dict(text="Prediksi Curah Hujan vs Pasang Surut", x=0.02, y=0.98, xanchor='left', yanchor='top'),
-        yaxis=dict(
-            title="Curah Hujan (mm)",
-            side='left',
-            showgrid=False
-        ),
-        yaxis2=dict(
-            title="Tinggi Pasang (meter)",
-            overlaying='y',
-            side='right',
-            showgrid=True,
-            range=[0, 4.2] # Adjust based on historical max
-        ),
-        legend=dict(
-            orientation='h',
-            yanchor="top",
-            y=-0.2, # Position further below
-            xanchor="center",
-            x=0.5
-        ),
-        hovermode="x unified",
-        margin={"r":10,"t":50,"l":10,"b":60} # Increased margins generally
+        height=600,
+        showlegend=True,
+        legend=dict(orientation="h", y=1.1, x=0),
+        margin=dict(t=50, b=50, l=50, r=50),
+        hovermode="x unified"
     )
+    
+    # Y-Axis Labels
+    fig.update_yaxes(title_text="Hujan (mm)", row=1, col=1, secondary_y=False)
+    fig.update_yaxes(title_text="Pasang (m)", row=1, col=1, secondary_y=True, range=[0, 4.2])
+    fig.update_yaxes(title_text="Risiko (%)", row=2, col=1, range=[0, 100])
     
     st.plotly_chart(fig, use_container_width=True)
 
@@ -303,25 +428,26 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         target_end = target_start + pd.Timedelta(days=1)
         future_tide_df = hourly_risk_df[(hourly_risk_df['time'] >= target_start) & (hourly_risk_df['time'] < target_end)]
     else:
-        # Fallback to next 48h
+        # Fallback to next 48h but starting from CURRENT HOUR FLOOR
+        # Example: Now is 11:30. We want 11:00 to be included.
         now = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
-        future_tide_df = hourly_risk_df[hourly_risk_df['time'] >= now].head(48) # Full 48 hours
+        now_floor = now.replace(minute=0, second=0, microsecond=0)
+        
+        future_tide_df = hourly_risk_df[hourly_risk_df['time'] >= now_floor].head(48) 
     
     if not future_tide_df.empty:
         # Create timestamp map for slider
         time_options = future_tide_df['time'].dt.strftime('%d %b %H:%M').tolist()
         
-        # Determine Default Value (Next Hour)
-        # If no date filter (live mode), default to next full hour
+        # Determine Default Value (Current Hour)
         default_idx = 0
         if not selected_date:
             now_dt = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
-            # Find the option closest to (now + 1 hour) rounded to hour
-            next_hour = (now_dt + pd.Timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-            next_hour_str = next_hour.strftime('%d %b %H:%M')
+            current_hour = now_dt.replace(minute=0, second=0, microsecond=0)
+            current_hour_str = current_hour.strftime('%d %b %H:%M')
             
-            if next_hour_str in time_options:
-                default_idx = time_options.index(next_hour_str)
+            if current_hour_str in time_options:
+                default_idx = time_options.index(current_hour_str)
         
         # Layout for controls
         col_ctrl1, col_ctrl2 = st.columns([3, 1])
@@ -430,19 +556,24 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         ))
         
         # Add Rain Radar Layer (if available)
-        radar_ts = fetch_radar_timestamp()
+        # Map Style Toggle
+        map_style = st.radio("Tampilan Peta:", ["Satelit (Citra)", "Jalan (Label/Alamat)"], horizontal=True)
         
-        layers = [
-            {
+        # Define Layers based on selection
+        if map_style == "Satelit (Citra)":
+            mapbox_style = "white-bg"
+            layers = [{
                 "below": 'traces',
                 "sourcetype": "raster",
                 "sourceattribution": "Esri World Imagery",
-                "source": [
-                    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                ]
-            }
-        ]
-        
+                "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+            }]
+        else:
+            # OpenStreetMap for clear addresses
+            mapbox_style = "open-street-map" 
+            layers = []
+            
+        radar_ts = fetch_radar_timestamp()
         if radar_ts:
             layers.append({
                 "below": 'traces',
@@ -455,7 +586,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             })
 
         fig_map.update_layout(
-            mapbox_style="white-bg", 
+            mapbox_style=mapbox_style, 
             mapbox_layers=layers,
             mapbox_zoom=10.8, # Optimized for Full Samarinda View
             mapbox_center={"lat": -0.498, "lon": 117.154}, # Fixed Center

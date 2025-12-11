@@ -43,47 +43,58 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> T
          return "Error", 0.0, 0.5, 0.0, {}
 
     # Feature Engineering logic (same as training)
-    h_hari_ini = input_data.get("hujan_hari_ini", 0)
-    durasi = input_data.get("durasi_hari_ini", 0)
-    h_lag1 = input_data.get("hujan_lag1", 0)
-    h_lag2 = input_data.get("hujan_lag2", 0)
-    h_lag3 = input_data.get("hujan_lag3", 0)
+    features_needed = model_pack.get("features", [])
+    hujan_3days = 0 # Default initialization for V2 compatibility logic checking
     
-    h_lag3 = input_data.get("hujan_lag3", 0)
+    if "rain_sum_imputed" in features_needed:
+        # V2 Logic
+        # Mapping input_data (which comes from Simulation sliders or defaults) to V2 Features
+        # Note: Simulation inputs in Dashboard need to provide these keys!
+        # Dashboard v2 inputs: rain_sum_imputed, rain_intensity_max, soil_moisture..., pasut_msl_max, lags
+        
+        df_input = pd.DataFrame([{
+            "rain_sum_imputed": input_data.get("rain_sum_imputed", 0),
+            "rain_intensity_max": input_data.get("rain_intensity_max", 0),
+            "soil_moisture_surface_mean": input_data.get("soil_moisture_surface_mean", 0.4),
+            "soil_moisture_root_mean": input_data.get("soil_moisture_root_mean", 0.4),
+            "pasut_msl_max": input_data.get("pasut_msl_max", 0),
+            "hujan_lag1": input_data.get("hujan_lag1", 0),
+            "hujan_lag2": input_data.get("hujan_lag2", 0)
+        }])
+        
+        # Ensure column order matches training
+        df_input = df_input[features_needed]
+        
+    else:
+        # V1 Logic (Legacy)
+        h_hari_ini = input_data.get("hujan_hari_ini", 0)
+        durasi = input_data.get("durasi_hari_ini", 0)
+        h_lag1 = input_data.get("hujan_lag1", 0)
+        h_lag2 = input_data.get("hujan_lag2", 0)
+        h_lag3 = input_data.get("hujan_lag3", 0)
+        
+        # ... API calculation ...
+        k = config.API_DECAY_FACTOR
+        api_lag3 = h_lag3
+        api_lag2 = h_lag2 + (k * api_lag3)
+        api_lag1 = h_lag1 + (k * api_lag2)
+        api_now  = h_hari_ini + (k * api_lag1)
+        hujan_3days = api_now
+        
+        pasut_max = input_data.get("pasut_msl_max", 0)
+        pasut_slope = input_data.get("pasut_slope", 0)
     
-    # --- UPGRADE: Antecedent Precipitation Index (API) ---
-    # Menggantikan penjumlahan sederhana dengan peluruhan waktu (Soil Saturation)
-    # Rumus Recursive Approx:
-    # API_lag3 = Lag3
-    # API_lag2 = Lag2 + k * API_lag3
-    # API_lag1 = Lag1 + k * API_lag2
-    # API_now  = Hujan_Hari_Ini + k * API_lag1
-    
-    k = config.API_DECAY_FACTOR
-    
-    api_lag3 = h_lag3
-    api_lag2 = h_lag2 + (k * api_lag3)
-    api_lag1 = h_lag1 + (k * api_lag2)
-    api_now  = h_hari_ini + (k * api_lag1)
-    
-    # We substitute 'hujan_3days' feature with this smarter 'api_now' value
-    # The model will verify this as "Accumulated Rain", but with better physics.
-    hujan_3days = api_now
-    
-    pasut_max = input_data.get("pasut_msl_max", 0)
-    pasut_slope = input_data.get("pasut_slope", 0)
-
-    # DataFrame sesuai format training
-    df_input = pd.DataFrame([{
-        'curah_hujan_mm': h_hari_ini,
-        'durasi_hujan_jam': durasi,
-        'pasut_msl_max': pasut_max,
-        'pasut_slope': pasut_slope,
-        'hujan_lag1': h_lag1,
-        'hujan_lag2': h_lag2,
-        'hujan_lag3': h_lag3,
-        'hujan_3days': hujan_3days
-    }])
+        # DataFrame sesuai format training V1
+        df_input = pd.DataFrame([{
+            'curah_hujan_mm': h_hari_ini,
+            'durasi_hujan_jam': durasi,
+            'pasut_msl_max': pasut_max,
+            'pasut_slope': pasut_slope,
+            'hujan_lag1': h_lag1,
+            'hujan_lag2': h_lag2,
+            'hujan_lag3': h_lag3,
+            'hujan_3days': hujan_3days
+        }])
     
     try:
         # Prediksi
@@ -183,26 +194,53 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
     hourly_df['hujan_3days'] = hourly_df.apply(calculate_row_api, axis=1)
     
     # Prepare X
-    X = pd.DataFrame({
-        'curah_hujan_mm': hourly_df['rain_rolling_24h'],
-        'durasi_hujan_jam': hourly_df['durasi_hujan_jam'],
-        'pasut_msl_max': hourly_df['pasut_msl_max'],
-        'pasut_slope': hourly_df['pasut_slope'],
-        'hujan_lag1': hourly_df['hujan_lag1'],
-        'hujan_lag2': hourly_df['hujan_lag2'],
-        'hujan_lag3': hourly_df['hujan_lag3'],
-        'hujan_3days': hourly_df['hujan_3days']
-    })
+    # Dynamic Feature Construction based on Model Version
+    features_needed = model_pack.get("features", [])
+    logger.info(f"Predict Hourly: Features Needed = {features_needed}")
+    
+    # Check if V2 features are needed
+    if "rain_sum_imputed" in features_needed:
+        # Construct V2 DataFrame
+        X = pd.DataFrame()
+        X['rain_sum_imputed'] = hourly_df['rain_rolling_24h']
+        # For hourly series, rain_intensity_max is just the hourly precip
+        X['rain_intensity_max'] = hourly_df['precipitation']
+        # Soil Moisture (Assumed available in hourly_df from V2 fetcher)
+        X['soil_moisture_surface_mean'] = hourly_df.get('soil_moisture_surface', 0.4) 
+        X['soil_moisture_root_mean'] = hourly_df.get('soil_moisture_root', 0.4)
+        X['pasut_msl_max'] = hourly_df['est']
+        X['hujan_lag1'] = hourly_df['hujan_lag1'] # Placeholder/0
+        X['hujan_lag2'] = hourly_df['hujan_lag2'] # Placeholder/0
+        
+        # Ensure order matches
+        X = X[features_needed]
+        
+    else:
+        # Fallback to V1 Legacy Features
+        X = pd.DataFrame({
+            'curah_hujan_mm': hourly_df['rain_rolling_24h'],
+            'durasi_hujan_jam': hourly_df['durasi_hujan_jam'],
+            'pasut_msl_max': hourly_df['pasut_msl_max'],
+            'pasut_slope': hourly_df['pasut_slope'],
+            'hujan_lag1': hourly_df['hujan_lag1'],
+            'hujan_lag2': hourly_df['hujan_lag2'],
+            'hujan_lag3': hourly_df['hujan_lag3'],
+            'hujan_3days': hourly_df['hujan_3days']
+        })
     
     X = X.fillna(0)
     
     # Predict
     if hasattr(model, "predict_proba"):
-        banjir_idx = 2
+        banjir_idx = 1 # Default for V2 (Binary: 0=Aman, 1=Banjir)
+        # Check classes
         if hasattr(model, "classes_"):
             classes_list = list(model.classes_)
-            if "Banjir" in classes_list:
+            if "Banjir" in classes_list: # V1 Style
                 banjir_idx = classes_list.index("Banjir")
+            elif 1 in classes_list or 1.0 in classes_list: # V2 Style (Binary)
+                banjir_idx = 1
+                
         probs = model.predict_proba(X)[:, banjir_idx]
     else:
         probs = model.predict(X)
@@ -211,4 +249,10 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
     hourly_df['status'] = hourly_df['probability'].apply(lambda x: "BAHAYA" if x >= threshold else "AMAN")
     
     # Clean up temporary columns if needed, but returning select columns is fine
-    return hourly_df[['time', 'probability', 'status', 'rain_rolling_24h', 'est', 'hujan_3days', 'precipitation']]
+    cols_to_return = ['time', 'probability', 'status', 'rain_rolling_24h', 'est', 'hujan_3days', 'precipitation']
+    # Add Soil Moisture if present
+    for col in ['soil_moisture_surface', 'soil_moisture_root']:
+        if col in hourly_df.columns:
+            cols_to_return.append(col)
+            
+    return hourly_df[cols_to_return]

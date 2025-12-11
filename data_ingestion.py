@@ -20,52 +20,55 @@ class WeatherFetcher:
         self.openmeteo = openmeteo_requests.Client(session=retry_session)
         self.url = config.OPENMETEO_URL
 
-    def fetch_hourly_data(self, lat: float = -0.4851, lon: float = 117.2536) -> pd.DataFrame:
+    @staticmethod
+    def fetch_weather_data(lat: float = config.LATITUDE, lon: float = config.LONGITUDE):
         """
-        Fetch hourly weather data (precipitation, rain, showers).
-        Default coordinates: Near APT Pranoto (Samarinda Utara / Hulu).
+        Fetches hourly weather forecast from Open-Meteo.
         """
-        params = {
-            "latitude": lat,
-            "longitude": lon,
-            "hourly": ["precipitation", "rain", "showers"],
-            "timezone": config.TIMEZONE, 
-            "past_days": 1,
-            "forecast_days": 7
-        }
-        
         try:
-            logger.info(f"Fetching weather data for lat={lat}, lon={lon}...")
-            responses = self.openmeteo.weather_api(self.url, params=params)
+            params = {
+                "latitude": lat,
+                "longitude": lon,
+                "hourly": ["precipitation", "soil_moisture_0_to_1cm", "soil_moisture_1_to_3cm"],
+                "timezone": config.TIMEZONE,
+                "past_days": 3,
+                "forecast_days": 3
+            }
+            
+            responses = openmeteo_requests.Client().weather_api(config.OPENMETEO_URL, params=params) # Use a new client for static method
             response = responses[0]
             
-            # Process hourly data
+            # Process Hourly
             hourly = response.Hourly()
-            hourly_precipitation = hourly.Variables(0).ValuesAsNumpy()
-            hourly_rain = hourly.Variables(1).ValuesAsNumpy()
-            hourly_showers = hourly.Variables(2).ValuesAsNumpy()
+            hourly_precip = hourly.Variables(0).ValuesAsNumpy()
+            hourly_soil0 = hourly.Variables(1).ValuesAsNumpy()
+            hourly_soil1 = hourly.Variables(2).ValuesAsNumpy()
             
-            hourly_data = {"date": pd.date_range(
-                start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
-                end = pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
-                freq = pd.Timedelta(seconds = hourly.Interval()),
-                inclusive = "left"
-            )}
+            hourly_data = {
+                "date": pd.date_range(
+                    start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
+                    end = pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
+                    freq = pd.Timedelta(seconds = hourly.Interval()),
+                    inclusive = "left"
+                )
+            }
+            hourly_data["precipitation"] = hourly_precip
+            hourly_data["soil_moisture_surface"] = hourly_soil0
+            hourly_data["soil_moisture_root"] = hourly_soil1
             
-            hourly_data["precipitation"] = hourly_precipitation
-            hourly_data["rain"] = hourly_rain
-            hourly_data["showers"] = hourly_showers
+            df = pd.DataFrame(data = hourly_data)
             
-            hourly_df = pd.DataFrame(data = hourly_data)
+            # Feature Engineering on the fly (Rolling, etc)
+            df['rain_rolling_24h'] = df['precipitation'].rolling(window=24, min_periods=1).sum()
+            df['rain_rolling_3h'] = df['precipitation'].rolling(window=3, min_periods=1).sum()
             
-            # Convert UTC to local
-            hourly_df["date"] = hourly_df["date"].dt.tz_convert(config.TIMEZONE)
+            # Convert timezone
+            df['date'] = df['date'].dt.tz_convert(config.TIMEZONE)
             
-            logger.info(f"Weather data fetched successfully. Rows: {len(hourly_df)}")
-            return hourly_df
+            return df
             
         except Exception as e:
-            logger.error(f"Error fetching weather data: {e}")
+            logging.error(f"Error fetching weather data: {e}")
             return pd.DataFrame()
 
 class TidePredictor:
