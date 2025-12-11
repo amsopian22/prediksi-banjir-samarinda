@@ -152,7 +152,7 @@ if mode == "Real-time Monitoring":
                         input_df = pd.DataFrame([sim_input_for_model])[v2_cols]
                         
                         try:
-                            model = model_pack[0] 
+                            model = model_pack["model"] 
                             prob_val = model.predict_proba(input_df)[0][1]
                             curr_prob = prob_val
                             curr_status = "Siaga" if curr_prob > config.THRESHOLD_FLOOD_PROBABILITY else "Aman"

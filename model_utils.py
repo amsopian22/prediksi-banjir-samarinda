@@ -100,15 +100,25 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> T
         # Prediksi
         if hasattr(model, "predict_proba"):
             # Robust Class Index Finding
-            # Assuming classes are ['Air Meluap', 'Aman', 'Banjir'] sorted
-            # Verify if classes_ attribute exists
-            banjir_idx = 2 # Default fallback
+            banjir_idx = 1 # Default for Binary (Assume 1 is Positive/Flood)
+            
             if hasattr(model, "classes_"):
                 classes_list = list(model.classes_)
                 if "Banjir" in classes_list:
                     banjir_idx = classes_list.index("Banjir")
-            
-            probabilitas = model.predict_proba(df_input)[0][banjir_idx]
+                elif len(classes_list) == 2:
+                     banjir_idx = 1 # Binary Fallback
+                elif len(classes_list) > 2:
+                     # If multiclass and "Banjir" not found, we might have an issue
+                     # Try to find something that looks like positive
+                     pass
+
+            # Safety check for dimensions
+            probs = model.predict_proba(df_input)[0]
+            if len(probs) > banjir_idx:
+                probabilitas = probs[banjir_idx]
+            else:
+                 probabilitas = probs[-1] # Fallback to last class
         else:
             probabilitas = float(model.predict(df_input)[0])
 

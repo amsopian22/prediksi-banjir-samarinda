@@ -20,8 +20,7 @@ class WeatherFetcher:
         self.openmeteo = openmeteo_requests.Client(session=retry_session)
         self.url = config.OPENMETEO_URL
 
-    @staticmethod
-    def fetch_weather_data(lat: float = config.LATITUDE, lon: float = config.LONGITUDE):
+    def fetch_weather_data(self, lat: float = config.LATITUDE, lon: float = config.LONGITUDE):
         """
         Fetches hourly weather forecast from Open-Meteo.
         """
@@ -35,7 +34,8 @@ class WeatherFetcher:
                 "forecast_days": 3
             }
             
-            responses = openmeteo_requests.Client().weather_api(config.OPENMETEO_URL, params=params) # Use a new client for static method
+            # Use the cached session client initialized in __init__
+            responses = self.openmeteo.weather_api(self.url, params=params)
             response = responses[0]
             
             # Process Hourly

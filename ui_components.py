@@ -226,64 +226,6 @@ def render_executive_summary(curr_prob: float, curr_tide: float, hourly_risk_df:
 # ... (render_hourly_chart ... fetch_radar_timestamp ... render_map_simulation)
 
 # We need to jump to render_map_simulation to fix the slider
-def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat: float, lon: float, selected_date=None):
-    """
-    Renders the Dynamic Inundation Map with Time Slider.
-    """
-    import os
-    if not geojson_data:
-        st.warning("Data GeoJSON peta tidak tersedia.")
-        return
-    
-    # ... (skipping some logic steps, assume lines 297-319 same)
-    
-    feats = [f['properties'] for f in geojson_data['features']]
-    df_map = pd.DataFrame(feats)
-    
-    st.divider()
-    st.subheader("🗺️ Peta Simulasi & Dampak Genangan")
-    st.info("💡 **Petunjuk**: Peta ini dinamis. Gunakan **slider waktu** di bawah untuk melihat bagaimana air pasang akan menggenangi wilayah rendah dari jam ke jam.")
-
-    # Dynamic Slider for Tide Simulation
-    # Check if selected_date is provided
-    if selected_date:
-        # Filter for specific date
-        target_start = pd.to_datetime(selected_date).tz_localize(hourly_risk_df['time'].dt.tz)
-        target_end = target_start + pd.Timedelta(days=1)
-        future_tide_df = hourly_risk_df[(hourly_risk_df['time'] >= target_start) & (hourly_risk_df['time'] < target_end)]
-    else:
-        # Fallback to next 48h
-        now = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
-        future_tide_df = hourly_risk_df[hourly_risk_df['time'] >= now].head(48) # Full 48 hours
-    
-    if not future_tide_df.empty:
-        # Create timestamp map for slider
-        time_options = future_tide_df['time'].dt.strftime('%d %b %H:%M').tolist()
-        
-        # Determine Default Value (Current Hour)
-        default_idx = 0
-        if not selected_date:
-            now_dt = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
-            # Find the option closest to CURRENT HOUR (e.g. 11:30 -> 11:00)
-            # Round down to hour
-            current_hour = now_dt.replace(minute=0, second=0, microsecond=0)
-            current_hour_str = current_hour.strftime('%d %b %H:%M')
-            
-            # Search for approximate match
-            if current_hour_str in time_options:
-                default_idx = time_options.index(current_hour_str)
-            else:
-                # Fallback: Find closest future time
-                pass # default_idx is 0 (first available time in future_tide_df which is >= now)
-                # Note: future_tide_df starts from >= now. 
-                # If now is 11:30, and df starts at 12:00 (because hourly data), then 12:00 is correct.
-                # If df has 11:00 (past), it might not be in future_tide_df!
-                # Wait, future_tide_df is defined as >= now.
-                # If we want CURRENT hour, we might need to broaden the filter to include current hour start. (>= now.floor('H'))
-                
-    st.warning("Logic improvement pending above: future_tide_df starts at 'now'. If 'now' is 11:30, 'time' column (12:00, 13:00) will be used. 11:00 is lost.")
-    # Fix: Broaden future_tide_df definition in next tool call or here.
-    return
 
 def render_metrics(curr_status: str, total_rain_24h: float, curr_tide: float, tide_status: str, sm_val: float):
     """
