@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 class WeatherFetcher:
     def __init__(self):
-        # Setup Open-Meteo API client with cache and retry on error
-        cache_session = requests_cache.CachedSession('.cache', expire_after=3600)
+        # Setup Open-Meteo API client with cache (memory-based for Cloud compatibility) and retry on error
+        cache_session = requests_cache.CachedSession('.cache', expire_after=3600, backend='memory')
         retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
         self.openmeteo = openmeteo_requests.Client(session=retry_session)
         self.url = config.OPENMETEO_URL
