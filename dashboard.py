@@ -159,8 +159,23 @@ if mode == "Real-time Monitoring":
                 
                 # Get Full Assessment
                 assessment = model_utils.predict_flood(model_pack, input_data_pack)
-                curr_prob = assessment['probability']
-                curr_status = assessment['label']
+                
+                # Defensive Check for Deployment Cache Issues
+                if isinstance(assessment, tuple):
+                    st.toast("⚠️ Warning: Legacy model Output detected. cache might be stale.", icon="⚠️")
+                    # Manual patch for legacy tuple: (status, prob, thresh, akum, contrib)
+                    assessment = {
+                        "level": "WASPADA" if assessment[0] == "BAHAYA BANJIR" else "NORMAL",
+                        "label": assessment[0],
+                        "probability": assessment[1],
+                        "color": "yellow" if assessment[0] == "BAHAYA BANJIR" else "green", 
+                        "recommendation": "Sistem sedang pembaruan cache. Silakan refresh.",
+                        "reasoning": "Legacy Output",
+                        "main_factor": "Unknown"
+                    }
+                
+                curr_prob = assessment.get('probability', 0)
+                curr_status = assessment.get('label', 'Unknown')
 
                 # --- VISUALISASI MENGGUNAKAN UI_COMPONENTS ---
                 
