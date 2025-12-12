@@ -73,8 +73,13 @@ if spatial_extractor:
 # --- LOGIKA OPERASI ---
 
 if mode == "Real-time Monitoring":
-    # 1. Fetch Weather
-    weather_df = weather_fetcher.fetch_weather_data(lat=lat, lon=lon)
+    # 1. Fetch Weather (Cached Wrapper)
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def get_cached_weather(lat, lon):
+        return weather_fetcher.fetch_weather_data(lat=lat, lon=lon)
+
+    with st.spinner("Mengambil data cuaca terkini..."):
+        weather_df = get_cached_weather(lat, lon)
     
     if not weather_df.empty:
         # 2. Predict Tides
