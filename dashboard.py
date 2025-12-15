@@ -231,10 +231,17 @@ if mode == "Real-time Monitoring":
                 st.subheader("📅 Prediksi 7 Hari Ke Depan")
                 
                 hourly_df['date_only'] = hourly_df['time'].dt.date
-                daily_groups = hourly_df.groupby('date_only')
+                today_date = pd.Timestamp.now(tz=config.TIMEZONE).date()
+                
+                # Filter for Today and Future
+                future_groups = [
+                    (d, g) for d, g in hourly_df.groupby('date_only') 
+                    if d >= today_date
+                ]
+                
                 cols = st.columns(7)
                 idx = 0
-                for date_val, group in daily_groups:
+                for date_val, group in future_groups:
                     if idx >= 7: break
                     daily_rain = group['precipitation'].sum()
                     daily_max_tide = group['est'].max()
@@ -262,6 +269,11 @@ if mode == "Real-time Monitoring":
                     d_status = d_assess['label']
                     d_prob = d_assess['probability']
                     d_color = d_assess['color']
+                    
+                    # DEBUG: Inspect Input Data
+                    with st.expander(f"Debug {date_val}"):
+                         st.write(d_input)
+                         st.write(f"Prob: {d_prob}")
                     
                     with cols[idx]:
                         date_str = config.format_id_date(date_val)

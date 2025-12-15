@@ -32,7 +32,7 @@ class WeatherFetcher:
                 "hourly": ["precipitation", "soil_moisture_0_to_1cm", "soil_moisture_1_to_3cm"],
                 "timezone": config.TIMEZONE,
                 "past_days": 3,
-                "forecast_days": 3
+                "forecast_days": 7
             }
             
             # Use the cached session client initialized in __init__
