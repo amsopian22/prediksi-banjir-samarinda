@@ -239,13 +239,22 @@ if mode == "Real-time Monitoring":
                     daily_rain = group['precipitation'].sum()
                     daily_max_tide = group['est'].max()
                     
-                    # Approximated Daily Input
+                    # Correct Lags from Lookup
+                    lags = lags_lookup.get(date_val, {})
+                    lag1 = lags.get('hujan_lag1', 0)
+                    lag2 = lags.get('hujan_lag2', 0)
+                    
+                    # Actual Soil Moisture
+                    soil_mean = group['soil_moisture_surface'].mean() if 'soil_moisture_surface' in group else 0.5
+
                     d_input = {
                         "rain_sum_imputed": daily_rain,
                         "rain_intensity_max": group['precipitation'].max(),
-                        "soil_moisture_surface_mean": 0.5, # Avg assumption
+                        "soil_moisture_surface_mean": soil_mean,
+                        "soil_moisture_root_mean": soil_mean, # Assumption for root
                         "pasut_msl_max": daily_max_tide,
-                        "hujan_lag1": 0, "hujan_lag2": 0
+                        "hujan_lag1": lag1, 
+                        "hujan_lag2": lag2
                     }
                     
                     # Predict using new function
