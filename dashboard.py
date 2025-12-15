@@ -73,11 +73,11 @@ if spatial_extractor:
 # --- LOGIKA OPERASI ---
     # 1. Fetch Weather (Cached Wrapper)
     @st.cache_data(ttl=3600, show_spinner=False)
-    def get_cached_weather(lat, lon):
+    def get_cached_weather_v2(lat, lon):
         return weather_fetcher.fetch_weather_data(lat=lat, lon=lon)
 
     with st.spinner("Mengambil data cuaca terkini..."):
-        weather_df = get_cached_weather(lat, lon)
+        weather_df = get_cached_weather_v2(lat, lon)
     
     if not weather_df.empty:
         # 2. Predict Tides
@@ -226,9 +226,9 @@ if spatial_extractor:
                         with st.expander("📄 Data Detail Per Jam"):
                              st.dataframe(filtered_df[['time', 'status', 'probability', 'rain_rolling_24h', 'est']], use_container_width=True)
 
-                # 5. 7-Day Forecast
+                # 5. 14-Day Forecast
                 st.divider()
-                st.subheader("📅 Prediksi 7 Hari Ke Depan")
+                st.subheader("📅 Prediksi 14 Hari Ke Depan")
                 
                 hourly_df['date_only'] = hourly_df['time'].dt.date
                 today_date = pd.Timestamp.now(tz=config.TIMEZONE).date()
@@ -239,10 +239,17 @@ if spatial_extractor:
                     if d >= today_date
                 ]
                 
-                cols = st.columns(7)
+                # Prepare Layout: Two rows of 7
+                row1 = st.columns(7)
+                row2 = st.columns(7)
+                
                 idx = 0
                 for date_val, group in future_groups:
-                    if idx >= 7: break
+                    if idx >= 14: break
+                    
+                    # Select container
+                    current_col = row1[idx] if idx < 7 else row2[idx-7]
+                    
                     daily_rain = group['precipitation'].sum()
                     daily_max_tide = group['est'].max()
                     
@@ -270,7 +277,7 @@ if spatial_extractor:
                     d_prob = d_assess['probability']
                     d_color = d_assess['color']
                     
-                    with cols[idx]:
+                    with current_col:
                         date_str = config.format_id_date(date_val)
                         st.markdown(f"**{date_str}**")
                         
