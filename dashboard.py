@@ -105,13 +105,6 @@ if spatial_extractor:
             }
             
             
-        if 'lags_lookup' in locals():
-            st.write("Lags Lookup Sample:", list(lags_lookup.items())[:3])
-            st.write("Daily Sums:", daily_sums)
-            
-        if 'hourly_df' in locals():
-            st.write("Hourly DF Stats:")
-            st.write(hourly_df[['est', 'precipitation']].describe())
             
         # 4. Predict Risk Series
         if model_pack:
