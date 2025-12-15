@@ -71,8 +71,6 @@ if spatial_extractor:
     st.sidebar.write(f"**Elevasi Tanah**: {elev:.1f} mdpl")
         
 # --- LOGIKA OPERASI ---
-
-if mode == "Real-time Monitoring":
     # 1. Fetch Weather (Cached Wrapper)
     @st.cache_data(ttl=3600, show_spinner=False)
     def get_cached_weather(lat, lon):
@@ -105,6 +103,15 @@ if mode == "Real-time Monitoring":
                 'hujan_lag2': daily_sums.get(lag2_date, 0),
                 'hujan_lag3': daily_sums.get(lag3_date, 0)
             }
+            
+            
+        if 'lags_lookup' in locals():
+            st.write("Lags Lookup Sample:", list(lags_lookup.items())[:3])
+            st.write("Daily Sums:", daily_sums)
+            
+        if 'hourly_df' in locals():
+            st.write("Hourly DF Stats:")
+            st.write(hourly_df[['est', 'precipitation']].describe())
             
         # 4. Predict Risk Series
         if model_pack:
@@ -270,11 +277,6 @@ if mode == "Real-time Monitoring":
                     d_prob = d_assess['probability']
                     d_color = d_assess['color']
                     
-                    # DEBUG: Inspect Input Data
-                    with st.expander(f"Debug {date_val}"):
-                         st.write(d_input)
-                         st.write(f"Prob: {d_prob}")
-                    
                     with cols[idx]:
                         date_str = config.format_id_date(date_val)
                         st.markdown(f"**{date_str}**")
@@ -294,6 +296,10 @@ if mode == "Real-time Monitoring":
                             
                         st.caption(f"🌧️ {daily_rain:.1f}mm\n🌊 {daily_max_tide:.1f}m")
                     idx += 1
+                
+                # Explanation for constant low probability
+                if hourly_df['precipitation'].sum() == 0:
+                     st.info("💡 **Catatan:** Probabilitas risiko rendah dan konstan dikarenakan prakiraan cuaca menunjukkan **tidak ada hujan** (0 mm) untuk periode ini. Risiko didominasi oleh faktor pasang surut rutin.")
 
                 # 6. Map Simulation (Moved to top)
                 # Code removed to prevent duplicate widget error
