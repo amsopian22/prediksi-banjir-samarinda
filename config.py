@@ -79,9 +79,20 @@ TIMEZONE = "Asia/Singapore" # WITA
 LATITUDE = -0.5022
 LONGITUDE = 117.1536
 
-# --- LOCATIONS ---
+# Titik Pantau Banjir (Nama Location -> Lat, Lon, Runoff Coefficient)
+# Runoff Coeff: 0.9 (Urban/Concrete), 0.7 (Residential), 0.5 (Green/Soil)
 LOCATIONS = {
-    "Samarinda Kota (Karang Mumus)": (-0.5022, 117.1536),
-    "Samarinda Utara (APT Pranoto)": (-0.4851, 117.2536),
-    "Palaran": (-0.55, 117.18)
+    "Simpang Lembuswana": (-0.472740, 117.143783, 0.90),
+    "Simpang Sempaja": (-0.457889, 117.155432, 0.85),
+    "Jalan Antasari": (-0.493922, 117.136894, 0.95), # Sangat Padat
+    "Lempake (Hulu)": (-0.428987, 117.168341, 0.60), # Lebih Hijau
+    "Kebon Agung": (-0.439812, 117.172938, 0.70)
 }
+
+# Lokasi Hulu (Catchment Area Hujan Kiriman) - Badak Baru / Kukar
+UPSTREAM_LOCATIONS = {
+    "Hulu Karang Mumus (Badak Baru)": (-0.352493, 117.228945) # Example coord for upstream
+}
+
+# Rata-rata waktu tempuh air dari hulu ke kota (Jam)
+UPSTREAM_LAG_HOURS = 6

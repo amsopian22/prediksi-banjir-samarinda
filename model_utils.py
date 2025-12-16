@@ -199,6 +199,38 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
         else:
              probabilitas = float(model.predict(df_input)[0])
 
+        # --- SPATIAL RISK BIAS (Heuristic for "Banjir Kiriman") ---
+        # Adjust probability based on Flow Accumulation if available.
+        # This allows the model to be sensitive to topography even if trained on single-point data.
+        flow_acc = input_data.get('flow_accumulation', 0)
+        
+        # Logic: If high accumulation (>5000 cells) AND significant rain (>20mm), boost risk.
+        if flow_acc > 5000 and input_data.get('rain_sum_imputed', 0) > 20:
+            # Boost factor: up to 15% increase for very high accumulation areas
+            boost = min(0.15, (flow_acc / 50000) * 0.10) 
+            probabilitas = min(0.99, probabilitas + boost)
+            
+        # --- UPSTREAM RAIN BIAS (Kiriman) ---
+        # If upstream rain is high (>20mm in last 6h), increase risk due to "Kiriman"
+        upstream_rain = input_data.get('upstream_rain', 0)
+        if upstream_rain > 20:
+             # Add 10% risk if Heavy Upstream Rain
+             probabilitas = min(0.99, probabilitas + 0.10)
+            
+             # Add 10% risk if Heavy Upstream Rain
+             probabilitas = min(0.99, probabilitas + 0.10)
+            
+        # --- LAND USE/RUNOFF FACTOR (Impervious Surface) ---
+        # Adjust based on Runoff Coefficient (0.5 to 1.0)
+        # Higher runoff (Urban) -> Higher probability
+        runoff_coeff = input_data.get('runoff_coefficient', 0.85) # Default to high if unknown
+        if runoff_coeff > 0.8: # Urban bias
+             probabilitas += 0.05
+        elif runoff_coeff < 0.6: # Green area reduction
+             probabilitas -= 0.05
+         
+        probabilitas = max(0.01, min(0.99, probabilitas))
+
         # Get Rich Assessment
         assessment = FloodRiskSystem.get_risk_assessment(probabilitas, input_data)
         

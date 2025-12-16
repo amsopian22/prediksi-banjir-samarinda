@@ -44,6 +44,7 @@ class SpatialFeatureExtractor:
                 self.transform = src.transform
                 self.crs = src.crs
                 self.bounds = src.bounds
+                logger.info(f"DEM Bounds: {self.bounds}")
             
             # Pysheds Grid
             try:
@@ -70,11 +71,11 @@ class SpatialFeatureExtractor:
                     dem_inf = self.grid.resolve_flats(self.dem_grid)
                     dirmap = (64, 128, 1, 2, 4, 8, 16, 32)
                     fdir = self.grid.flowdir(dem_inf, dirmap=dirmap)
-                    acc = self.grid.accumulation(fdir, dirmap=dirmap)
+                    self.acc = self.grid.accumulation(fdir, dirmap=dirmap)
                     
                     slope_tan = np.tan(self.slope_map + 0.001) # Avoid zero
-                    self.twi = np.log((acc + 1) / slope_tan)
-                    logger.info("TWI Calculated.")
+                    self.twi = np.log((self.acc + 1) / slope_tan)
+                    logger.info("TWI and Flow Accumulation Calculated.")
                 except Exception as e:
                     logger.error(f"TWI calc failed: {e}")
                     self.twi = np.zeros_like(self.dem)
@@ -118,18 +119,30 @@ class SpatialFeatureExtractor:
         dist_deg = point.distance(self.rivers)
         dist_m = dist_deg * 111139
         
+        # 3. Flow Accumulation (New)
+        acc_val = 0.0
+        if self.acc is not None:
+             try:
+                 # Grid Lookup for Acc
+                row, col = src.index(lon, lat)
+                if 0 <= row < self.acc.shape[0] and 0 <= col < self.acc.shape[1]:
+                    acc_val = float(self.acc[row, col])
+             except:
+                 pass
+
         return {
             "elevation": elev,
             "slope": slope_val,
             "twi": twi_val,
+            "flow_accumulation": acc_val,
             "river_dist_m": dist_m
         }
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     extractor = SpatialFeatureExtractor()
-    # Test Point (APT Pranoto)
-    lat, lon = -0.4851, 117.2536
+    # Test Point (Within Bounds)
+    lat, lon = -0.6, 117.15
     feats = extractor.get_features(lat, lon)
     print(f"Features for ({lat}, {lon}):")
     print(feats)

@@ -10,3 +10,6 @@ venv/
 .vscode/
 data/
 .cache.sqlite
+new-key-sentinel/
+*.bak.csv
+*_bak.csv

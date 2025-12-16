@@ -12,6 +12,7 @@ import tide_utils
 from feature_extraction import SpatialFeatureExtractor
 import config
 import ui_components
+import sentinel_utils
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -57,7 +58,9 @@ mode = st.sidebar.radio("Mode Operasi:", ["Real-time Monitoring", "Simulasi Manu
 # Location Selector
 locations = config.LOCATIONS
 selected_loc_name = st.sidebar.selectbox("Pilih Lokasi Pantau:", list(locations.keys()))
-lat, lon = locations[selected_loc_name]
+loc_data = locations[selected_loc_name]
+lat = loc_data[0]
+lon = loc_data[1]
 
 # Spatial Risk Context
 if spatial_extractor:
@@ -69,16 +72,44 @@ if spatial_extractor:
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 📍 Topografi Wilayah")
     st.sidebar.write(f"**Elevasi Tanah**: {elev:.1f} mdpl")
+    st.sidebar.write(f"**Akumulasi Aliran**: {loc_feats.get('flow_accumulation', 0):.0f} sel (Risiko Kiriman)")
         
 # --- LOGIKA OPERASI ---
     # 1. Fetch Weather (Cached Wrapper)
     @st.cache_data(ttl=3600, show_spinner=False)
-    def get_cached_weather_v2(lat, lon):
-        return weather_fetcher.fetch_weather_data(lat=lat, lon=lon)
+    def get_cached_weather_v2(lat, lon, label=None):
+        return weather_fetcher.fetch_weather_data(lat=lat, lon=lon, location_label=label)
+
+    # 2. Hybrid Validation (Cached Wrapper)
+    @st.cache_data(ttl=900, show_spinner=False) # Cache for 15 mins
+    def check_hybrid_validation(lat, lon):
+        validator = sentinel_utils.FloodValidator()
+        return validator.get_hybrid_status(lat, lon)
 
     with st.spinner("Mengambil data cuaca terkini..."):
         weather_df = get_cached_weather_v2(lat, lon)
+        
+        # 1b. Fetch Upstream Weather (Hulu)
+        # Using the first upstream location defined in config
+        upstream_name = list(config.UPSTREAM_LOCATIONS.keys())[0]
+        upstream_df = get_cached_weather_v2(None, None, upstream_name)
     
+    # --- UPSTREAM STATUS DISPLAY ---
+    if not upstream_df.empty:
+        # Calculate recent rain in upstream (last 6-12 hours)
+        upstream_rain_recent = upstream_df['precipitation'].rolling(window=6).sum().iloc[-1]
+        
+        st.sidebar.markdown("---")
+        st.sidebar.markdown(f"### ⛰️ Status Hulu ({upstream_name.split('(')[0].strip()})")
+        
+        if upstream_rain_recent > 20: 
+            st.sidebar.error(f"⚠️ **Hujan Deras di Hulu!**\n{upstream_rain_recent:.1f} mm (6 jam terakhir)")
+            st.sidebar.caption(f"Estimasi kiriman sampai: {config.UPSTREAM_LAG_HOURS} jam lagi.")
+        elif upstream_rain_recent > 5:
+            st.sidebar.warning(f"🌧️ **Hujan Ringan**\n{upstream_rain_recent:.1f} mm")
+        else:
+            st.sidebar.success(f"☁️ **Kering/Aman**\n{upstream_rain_recent:.1f} mm")
+
     if not weather_df.empty:
         # 2. Predict Tides
         weather_df['est'] = tide_predictor.predict_hourly(weather_df['date'])
@@ -153,13 +184,21 @@ if spatial_extractor:
                 # Use simulated soil if active, else real
                 final_soil = sim_soil if st.session_state.get('sim_active') else current_soil if isinstance(current_soil, float) else 0.45
 
+                # Get Runoff Coeff from Config
+                # config.LOCATIONS[selected_loc_name] is now (lat, lon, runoff)
+                loc_data = config.LOCATIONS[selected_loc_name]
+                runoff_val = loc_data[2] if len(loc_data) > 2 else 0.85
+
                 input_data_pack = {
                     "rain_sum_imputed": curr_rain_24h,
                     "rain_intensity_max": current_row['precipitation'].values[0] if not current_row.empty else 0,
                     "soil_moisture_surface_mean": final_soil,
                     "soil_moisture_root_mean": final_soil,
                     "pasut_msl_max": curr_tide,
-                    "hujan_lag1": 0, "hujan_lag2": 0 # Real-time simplification
+                    "hujan_lag1": 0, "hujan_lag2": 0, # Real-time simplification
+                    "upstream_rain": upstream_rain_recent if 'upstream_rain_recent' in locals() else 0,
+                    "flow_accumulation": loc_feats.get('flow_accumulation', 0) if 'loc_feats' in locals() else 0,
+                    "runoff_coefficient": runoff_val
                 }
                 
                 # Get Full Assessment
@@ -182,53 +221,60 @@ if spatial_extractor:
                 curr_prob = assessment.get('probability', 0)
                 curr_status = assessment.get('label', 'Unknown')
 
-                # --- VISUALISASI MENGGUNAKAN UI_COMPONENTS ---
+                # --- HYBRID VALIDATION (Satellite + Radar) ---
+                val_result = None
                 
-                # 1. Executive Summary (New Signature)
-                ui_components.render_executive_summary(assessment)
+                # Check Hybrid Validation if Risk is High
+                if curr_status in ["WASPADA", "BAHAYA", "SIAGA"]:
+                     hybrid_status = check_hybrid_validation(lat, lon)
+                     if hybrid_status:
+                        val_result = {
+                            "status": "CONFIRMED",
+                            "label": hybrid_status['label'],
+                            "detail": hybrid_status['detail'],
+                            "color": hybrid_status['color_hex']
+                        }
                 
-                # 2. Key Metrics
-                tide_status = "Bahaya" if curr_tide >= config.THRESHOLD_TIDE_PHYSICAL_DANGER else "Normal"
-                ui_components.render_metrics(curr_status, curr_rain_24h, curr_tide, tide_status, final_soil)
+                # --- VISUALISASI MENGGUNAKAN UI_COMPONENTS (COMMAND CENTER) ---
                 
-                # 3. Risk Context (Why & How) -- NEW
-                ui_components.render_risk_context(assessment)
+                # 1. Hero Section (Command Status)
+                ui_components.render_command_center_hero(assessment, validation=val_result)
+                ui_components.render_status_reference()
                 
+                # 2. Operational Fronts (The 3-Fronts Grid)
+                # Prepare Dicts
+                w_dict = {'rain_24h': curr_rain_24h}
+                u_dict = {'rain_recent': upstream_rain_recent}
+                o_dict = {'tide_max': curr_tide}
+                s_dict = {'soil_moisture': final_soil}
+                
+                ui_components.render_operational_fronts(w_dict, u_dict, o_dict, s_dict)
+                
+                # 3. Decision Support (Tabs)
                 st.markdown("---")
                 
                 # Filter Date (Global for Dashboard)
                 col_filter, _ = st.columns([1, 4])
                 with col_filter:
-                    selected_date = st.date_input("📅 Filter Tanggal Simulasi & Detail:", value=pd.Timestamp.now().date())
+                    selected_date = st.date_input("📅 Filter Tanggal Dokumen Operasi:", value=pd.Timestamp.now().date())
                 
-                # 4. Split Layout: Map & Charts
-                col_main_1, col_main_2 = st.columns([1.5, 1])
-                
-                with col_main_1:
-                    # Map Simulation
-                    import json
-                    if os.path.exists(config.RISK_MAP_PATH):
-                        with open(config.RISK_MAP_PATH) as f:
-                            geojson_data = json.load(f)
-                        ui_components.render_map_simulation(geojson_data, hourly_risk_df, lat, lon, selected_date=selected_date)
-                        
-                with col_main_2:
-                    # Filter Data based on Selected Date
-                    filtered_df = hourly_risk_df[hourly_risk_df['time'].dt.date == selected_date]
-                    
-                    if filtered_df.empty:
-                        st.info(f"Tidak ada data untuk tanggal {config.format_id_date(selected_date)}.")
-                    else:
-                        # Hourly Chart
-                        ui_components.render_hourly_chart(filtered_df)
-                        
-                        # Detail Table in Expander
-                        with st.expander("📄 Data Detail Per Jam"):
-                             st.dataframe(filtered_df[['time', 'status', 'probability', 'rain_rolling_24h', 'est']], use_container_width=True)
+                import json
+                geojson_data = None
+                if os.path.exists(config.RISK_MAP_PATH):
+                    with open(config.RISK_MAP_PATH) as f:
+                        geojson_data = json.load(f)
 
-                # 5. 14-Day Forecast
+                # Filter Data based on Selected Date
+                filtered_df = hourly_risk_df[hourly_risk_df['time'].dt.date == selected_date]
+                
+                ui_components.render_decision_support(geojson_data, filtered_df if not filtered_df.empty else hourly_risk_df, lat, lon, selected_date)
+                
+                if filtered_df.empty:
+                     st.warning(f"Data spesifik untuk {config.format_id_date(selected_date)} tidak ditemukan. Menampilkan data umum.")
+
+                # 5. 7-Day Forecast
                 st.divider()
-                st.subheader("📅 Prediksi 14 Hari Ke Depan")
+                st.subheader("📅 Prediksi 7 Hari Ke Depan")
                 
                 hourly_df['date_only'] = hourly_df['time'].dt.date
                 today_date = pd.Timestamp.now(tz=config.TIMEZONE).date()
@@ -239,16 +285,15 @@ if spatial_extractor:
                     if d >= today_date
                 ]
                 
-                # Prepare Layout: Two rows of 7
+                # Prepare Layout: One row of 7
                 row1 = st.columns(7)
-                row2 = st.columns(7)
                 
                 idx = 0
                 for date_val, group in future_groups:
-                    if idx >= 14: break
+                    if idx >= 7: break
                     
                     # Select container
-                    current_col = row1[idx] if idx < 7 else row2[idx-7]
+                    current_col = row1[idx]
                     
                     daily_rain = group['precipitation'].sum()
                     daily_max_tide = group['est'].max()

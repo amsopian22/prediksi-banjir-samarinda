@@ -21,10 +21,18 @@ class WeatherFetcher:
         self.openmeteo = openmeteo_requests.Client(session=retry_session)
         self.url = config.OPENMETEO_URL
 
-    def fetch_weather_data(self, lat: float = config.LATITUDE, lon: float = config.LONGITUDE):
+    def fetch_weather_data(self, lat: float = None, lon: float = None, location_label: str = None):
         """
         Fetches hourly weather forecast from Open-Meteo.
+        If location_label is provided and exists in UPSTREAM_LOCATIONS, uses that coord.
+        Otherwise uses provided lat/lon or defaults.
         """
+        # Determine Coordinates
+        if location_label and location_label in config.UPSTREAM_LOCATIONS:
+            lat, lon = config.UPSTREAM_LOCATIONS[location_label]
+        elif lat is None or lon is None:
+            lat = config.LATITUDE
+            lon = config.LONGITUDE
         try:
             params = {
                 "latitude": lat,
