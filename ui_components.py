@@ -285,10 +285,8 @@ def render_command_center_hero(assessment: dict, validation: dict = None):
 
     st.markdown(f"""
 <div class="hero-banner {pulse_class}" style="background: {status_bg}; border: 1px solid {status_color}; text-align: left; position: relative; overflow: hidden; padding: 30px;">
-<!-- Watermark Background -->
-<div style="position: absolute; top: -20px; right: -20px; font-size: 15rem; opacity: 0.05; font-weight: 800; color: {status_color}; pointer-events: none;">
-BPBD
-</div>
+<!-- Watermark Background Removed -->
+
 <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px;">
 <div style="flex: 2; min-width: 300px;">
 <div style="font-size: 0.8rem; letter-spacing: 2px; color: {status_color}; margin-bottom: 5px; font-weight: 600;">STATUS OPERASIONAL</div>
