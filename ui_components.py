@@ -605,17 +605,18 @@ def render_hourly_chart(hourly_risk_df: pd.DataFrame):
 
 @st.cache_data(ttl=600) # Cache for 10 minutes
 def fetch_radar_timestamp():
-    """Fetch the latest available radar timestamp from RainViewer API."""
+    """Fetch the latest available radar timestamp and host from RainViewer API."""
     import requests
     try:
         url = "https://api.rainviewer.com/public/weather-maps.json"
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             data = response.json()
+            host = data.get("host", "https://tilecache.rainviewer.com")
             # Get the very latest past timestamp
             if "radar" in data and "past" in data["radar"] and len(data["radar"]["past"]) > 0:
                 latest = data["radar"]["past"][-1]
-                return latest["time"]
+                return host, latest["time"]
     except Exception as e:
         pass # Fail silently and return None
     return None
@@ -789,22 +790,25 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             mapbox_style = "open-street-map" 
             layers = []
             
-        radar_ts = fetch_radar_timestamp()
-        if radar_ts:
+        radar_info = fetch_radar_timestamp()
+        if radar_info:
+            r_host, r_ts = radar_info
             layers.append({
                 "below": 'traces',
                 "sourcetype": "raster",
                 "sourceattribution": "RainViewer Radar",
                 "source": [
-                    f"https://tilecache.rainviewer.com/v2/radar/{radar_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+                    f"{r_host}/v2/radar/{r_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
                 ],
-                "opacity": 0.7
+                "opacity": 0.7,
+                "minzoom": 0,
+                "maxzoom": 10
             })
 
         fig_map.update_layout(
             mapbox_style=mapbox_style, 
             mapbox_layers=layers,
-            mapbox_zoom=10.8, # Optimized for Full Samarinda View
+            mapbox_zoom=9.5, # Optimized: Lower zoom to avoid free-tier limit (z=10) on load.
             mapbox_center={"lat": -0.498, "lon": 117.154}, # Fixed Center
             margin={"r":0,"t":0,"l":0,"b":0},
             height=500,
