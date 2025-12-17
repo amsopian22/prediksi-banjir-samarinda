@@ -796,7 +796,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 "sourcetype": "raster",
                 "sourceattribution": "RainViewer Radar",
                 "source": [
-                    f"https://tile.rainviewer.com/{radar_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+                    f"https://tilecache.rainviewer.com/v2/radar/{radar_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
                 ],
                 "opacity": 0.7
             })
