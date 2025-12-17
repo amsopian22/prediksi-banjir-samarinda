@@ -816,7 +816,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             coloraxis_showscale=False
         )
         
-        st.plotly_chart(fig_map, use_container_width=True)
+        st.plotly_chart(fig_map, use_container_width=True, key=f"map_sim_{radar_ts or 'none'}")
         
         # Legend Explanation
         st.markdown("""
