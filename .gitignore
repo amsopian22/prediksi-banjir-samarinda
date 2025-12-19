@@ -13,3 +13,5 @@ data/
 new-key-sentinel/
 *.bak.csv
 *_bak.csv
+new-key-sentinel/
+.cache.sqlite

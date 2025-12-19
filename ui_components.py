@@ -235,7 +235,7 @@ def render_status_reference():
 </div>
 <div style="text-align: center;">
 <div style="color: #e74c3c; font-weight: 800; font-size: 0.9rem; margin-bottom: 4px;">🚨 SIAGA I</div>
-<div style="color: #a0a0a0; font-size: 0.75rem;">Tempur (Mobilisasi)</div>
+<div style="color: #a0a0a0; font-size: 0.75rem;">Mobilisasi</div>
 </div>
 </div>
 """, unsafe_allow_html=True)
@@ -244,7 +244,7 @@ def render_status_reference():
 def render_command_center_hero(assessment: dict, validation: dict = None):
     """
     New Hero Section for BPBD Command Center.
-    Focus on: Operational Status (Siaga Tempur/Waspada) & Aerial Intel (Validation).
+    Focus on: Operational Status (Siaga Mobilisasi) & Aerial Intel (Validation).
     """
     level = assessment.get("level", "UNKNOWN")
     label = assessment.get("label", "NORMAL")
@@ -265,7 +265,7 @@ def render_command_center_hero(assessment: dict, validation: dict = None):
         status_bg = "rgba(230, 126, 34, 0.15)"
         pulse_class = "pulse"
     elif level == "AWAS":
-        status_text = "SIAGA I (TEMPUR)"
+        status_text = "SIAGA I (AWAS)"
         status_color = "#e74c3c" # Red
         status_bg = "rgba(231, 76, 60, 0.2)"
         pulse_class = "pulse-red"
@@ -292,12 +292,12 @@ def render_command_center_hero(assessment: dict, validation: dict = None):
 <div style="font-size: 0.8rem; letter-spacing: 2px; color: {status_color}; margin-bottom: 5px; font-weight: 600;">STATUS OPERASIONAL</div>
 <div class="hero-status-text" style="color: {status_color}; font-size: 3.5rem;">{status_text}</div>
 <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
-<span style="background: {status_color}; color: black; padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">ARAHAN KOMANDO</span>
+<span style="background: {status_color}; color: black; padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">REKOMENDASI SISTEM</span>
 <span style="color: white; font-family: monospace; letter-spacing: 0.5px;">{recommendation}</span>
 </div>
 </div>
 <div style="flex: 1; min-width: 200px; text-align: right; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 20px;">
-<div style="font-size: 0.8rem; letter-spacing: 1px; color: #8b9bb4;">INTELIJEN UDARA (VERIFIKASI)</div>
+<div style="font-size: 0.8rem; letter-spacing: 1px; color: #8b9bb4;">VERIFIKASI LAPANGAN (DIGITAL)</div>
 <div style="font-size: 1.8rem; font-weight: 700; color: {val_color}; margin-top: 5px;">
 {val_icon} {val_status}
 </div>
@@ -314,7 +314,7 @@ def render_operational_fronts(weather: dict, upstream: dict, ocean: dict, spatia
     """
     The 3-Fronts Tactical Grid: Meteorologis, Oseanografis, Spasial.
     """
-    st.markdown("### ⚔️ MONITORING 3 FRONT (TIGA MEDAN)")
+    st.markdown("### ⚔️ MONITORING TERPADU (3 INDIKATOR)")
     
     # Prepare Front Data
     
@@ -354,7 +354,7 @@ def render_operational_fronts(weather: dict, upstream: dict, ocean: dict, spatia
 <!-- FRONT LANGIT -->
 <div class="grid-item" style="border-top: 3px solid {meteo_color};">
 <div class="grid-header">
-<span>☁️ FRONT LANGIT (METEO)</span>
+<span>☁️ KONDISI CUACA (METEO)</span>
 </div>
 <div>
 <div class="grid-value" style="color: {meteo_color};">{meteo_status}</div>
@@ -364,7 +364,7 @@ def render_operational_fronts(weather: dict, upstream: dict, ocean: dict, spatia
 <!-- FRONT LAUT -->
 <div class="grid-item" style="border-top: 3px solid {tide_color};">
 <div class="grid-header">
-<span>🌊 FRONT LAUT (OSEANO)</span>
+<span>🌊 KONDISI PASANG SURUT</span>
 </div>
 <div>
 <div class="grid-value" style="color: {tide_color};">{tide_status}</div>
@@ -374,7 +374,7 @@ def render_operational_fronts(weather: dict, upstream: dict, ocean: dict, spatia
 <!-- FRONT DARAT -->
 <div class="grid-item" style="border-top: 3px solid {land_color};">
 <div class="grid-header">
-<span>⛰️ FRONT DARAT (SPASIAL)</span>
+<span>⛰️ KONDISI TANAH (SPASIAL)</span>
 </div>
 <div>
 <div class="grid-value" style="color: {land_color};">{land_status}</div>
@@ -391,7 +391,7 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
     """
     st.markdown("### 🎯 PENDUKUNG KEPUTUSAN OPERASIONAL")
     
-    tab1, tab2, tab3 = st.tabs(["🗺️ PETA OPERASI (TARGET AREA)", "📉 TIMELINE KRISIS (WAKTU)", "📡 MONITOR HULU (EWS)"])
+    tab1, tab2, tab3 = st.tabs(["🗺️ PETA OPERASI (TARGET AREA)", "📉 GRAFIK TREN WAKTU", "📡 MONITOR HULU (EWS)"])
     
     with tab1:
         # Reuse existing map logic but simpler wrapper

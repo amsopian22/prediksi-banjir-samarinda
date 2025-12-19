@@ -18,20 +18,32 @@ class FloodValidator:
     def check_satellite_availability(self, lat, lon):
         """
         Checks real Sentinel-1 availability using Google Earth Engine.
+        Supports loading credentials from local file OR Streamlit secrets.
         """
         try:
             import ee
             from google.oauth2.service_account import Credentials
             import json
             import os
+            import streamlit as st
             
-            # 1. Load Credentials
+            credentials = None
             key_path = "new-key-sentinel/banjir-samarinda-sentinel-4bd9890a5f7a.json"
-            if not os.path.exists(key_path):
-                logger.warning("Sentinel Key not found. Falling back to Mock.")
+            
+            # 1. Try loading from File (Local Dev)
+            if os.path.exists(key_path):
+                credentials = Credentials.from_service_account_file(key_path)
+            
+            # 2. Try loading from Streamlit Secrets (Deployment)
+            elif "gcp_service_account" in st.secrets:
+                # Expecting st.secrets["gcp_service_account"] to be the Dict content of the JSON
+                service_account_info = dict(st.secrets["gcp_service_account"])
+                credentials = Credentials.from_service_account_info(service_account_info)
+                
+            else:
+                logger.warning("Sentinel Key not found in File or Secrets. Falling back to Mock.")
                 return False, 0
                 
-            credentials = Credentials.from_service_account_file(key_path)
             scoped_credentials = credentials.with_scopes(['https://www.googleapis.com/auth/earthengine'])
             
             # 2. Initialize Earth Engine with retry
