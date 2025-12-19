@@ -11,3 +11,4 @@ plotly
 earthengine-api
 openmeteo-requests
 requests-cache
+retry-requests
