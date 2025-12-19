@@ -12,3 +12,8 @@ earthengine-api
 openmeteo-requests
 requests-cache
 retry-requests
+rasterio
+pysheds
+geopandas
+shapely
+scipy
