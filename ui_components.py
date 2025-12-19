@@ -750,51 +750,60 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             [1.0, "red"]
         ]
 
-        # Create Dynamic Map
-        fig_map = go.Figure(go.Choroplethmapbox(
-            geojson=geojson_data,
-            locations=df_map['NAMOBJ'],
-            z=df_map['sim_score'],
-            featureidkey="properties.NAMOBJ",
-            colorscale=custom_colorscale,
-            zmin=0,
-            zmax=1,
-            marker_opacity=0.6,
-            marker_line_width=1,
-            text=df_map['status_text'],
-            hovertemplate=(
-                "<b>Negara/Kelurahan: %{location}</b><br>" +
-                "Status: <b>%{text}</b><br>" +
-                "Estimasi Genangan: <b>%{customdata[1]}</b><br>" +
-                "Elevasi Tanah: %{customdata[0]:.1f} mdpl<br>" +
-                "<extra></extra>"
-            ),
-            customdata=df_map[['mean_elev', 'depth_est']]
-        ))
+        # Map Control Layout
+        c_layer1, c_layer2 = st.columns([1, 1])
+        with c_layer1:
+            # 1. Base Map Style Toggle
+            base_map_style = st.radio("Tampilan Dasar Peta:", ["Peta Jalan (Default)", "Citra Satelit"], horizontal=True)
         
-        # Add Rain Radar Layer (if available)
-        # Map Style Toggle
-        map_style = st.radio("Tampilan Peta:", ["Satelit (Citra)", "Jalan (Label/Alamat)"], horizontal=True)
-        
-        # Define Layers based on selection
-        if map_style == "Satelit (Citra)":
+        with c_layer2:
+            # 2. Overlay Layer Toggle
+            layer_mode = st.radio("Layer Overlay:", ["Gabungan (All)", "Hanya Polygon Risiko", "Hanya Radar Hujan"], horizontal=True)
+
+        # Initialize Base Map Style
+        layers = []
+        if base_map_style == "Citra Satelit":
             mapbox_style = "white-bg"
-            layers = [{
+            layers.append({
                 "below": 'traces',
                 "sourcetype": "raster",
                 "sourceattribution": "Esri World Imagery",
                 "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
-            }]
+            })
         else:
-            # OpenStreetMap for clear addresses
-            mapbox_style = "open-street-map" 
-            layers = []
-            
-            layers = []
-            
+            mapbox_style = "carto-positron" # or "open-street-map" for more details
+        
+        # 1. Base Polygon Layer (Risk Map)
+        if layer_mode in ["Gabungan (All)", "Hanya Polygon Risiko"]:
+            fig_map = go.Figure(go.Choroplethmapbox(
+                geojson=geojson_data,
+                locations=df_map['NAMOBJ'],
+                z=df_map['sim_score'],
+                featureidkey="properties.NAMOBJ",
+                colorscale=custom_colorscale,
+                zmin=0,
+                zmax=1,
+                marker_opacity=0.6,
+                marker_line_width=1,
+                text=df_map['status_text'],
+                hovertemplate=(
+                    "<b>Negara/Kelurahan: %{location}</b><br>" +
+                    "Status: <b>%{text}</b><br>" +
+                    "Estimasi Genangan: <b>%{customdata[1]}</b><br>" +
+                    "Elevasi Tanah: %{customdata[0]:.1f} mdpl<br>" +
+                    "<extra></extra>"
+                ),
+                customdata=df_map[['mean_elev', 'depth_est']]
+            ))
+        else:
+            # Empty Base if Polygon disabled (just center map)
+            fig_map = go.Figure(go.Scattermapbox(lat=[-0.498], lon=[117.154], mode='markers', marker=dict(size=0, opacity=0)))
+
         radar_info = fetch_radar_timestamp()
         r_ts = None
-        if radar_info:
+        
+        # 2. Add Radar Layer
+        if radar_info and layer_mode in ["Gabungan (All)", "Hanya Radar Hujan"]:
             r_host, r_ts = radar_info
             layers.append({
                 "below": 'traces',

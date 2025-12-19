@@ -55,9 +55,9 @@ class FloodValidator:
             # 3. Query Sentinel-1 Collection
             point = ee.Geometry.Point([lon, lat])
             
-            # Look for recent images (last 24 hours)
+            # Look for recent images (last 30 days) to ensure availability for demo
             now = datetime.utcnow()
-            start_date = (now - timedelta(hours=24)).strftime('%Y-%m-%d')
+            start_date = (now - timedelta(days=30)).strftime('%Y-%m-%d')
             end_date = now.strftime('%Y-%m-%d')
             
             collection = (ee.ImageCollection('COPERNICUS/S1_GRD')
