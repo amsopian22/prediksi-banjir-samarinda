@@ -176,7 +176,7 @@ if spatial_extractor:
                     curr_rain_24h = st.session_state['sim_rain']
                     curr_tide = st.session_state['sim_tide']
                     sim_soil = st.session_state['sim_soil']
-                    st.sidebar.toast(f"✅ Simulasi Aktif: Hujan {curr_rain_24h}mm, Pasang {curr_tide}m")
+                    st.toast(f"✅ Simulasi Aktif: Hujan {curr_rain_24h}mm, Pasang {curr_tide}m")
 
                 # Prepare Data for Full Assessment (Real-time or Simulated)
                 # Getting soil moisture default
