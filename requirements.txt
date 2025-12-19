@@ -9,3 +9,5 @@ Pillow
 openpyxl
 plotly
 earthengine-api
+openmeteo-requests
+requests-cache
