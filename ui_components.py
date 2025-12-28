@@ -794,24 +794,25 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         fig_map = go.Figure()
 
         # 1. Heatmap Layer (Densitymapbox)
-        # SHOW ALL points to ensure map is not empty, but use transparency for Safe areas.
-        # This fixes "Map Empty" perception when conditions are safe.
-        df_risk = df_map.copy()
+        # SHOW ONLY RISK > 0 to avoid "Green Fog" overlay.
+        df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
+        df_safe = df_map[df_map['heatmap_intensity'] == 0].copy() # For safe points
         
-        # Update Colorscale: Safe (0.0) is Faint Green/Blue
+        # Colorscale: Yellow (Low Risk) -> Red -> Black
         custom_heatmap_colors = [
-            [0.0, 'rgba(0, 200, 83, 0.3)'],   # Aman (Hijau Pudar) - Visible!
-            [0.3, 'rgba(255, 235, 59, 0.6)'], # Waspada (Kuning)
-            [0.7, 'rgba(255, 0, 0, 0.8)'],    # Bahaya (Merah)
+            [0.0, 'rgba(255, 235, 59, 0.0)'], # Start Transparent
+            [0.1, 'rgba(255, 235, 59, 0.6)'], # Waspada (Kuning)
+            [0.5, 'rgba(255, 0, 0, 0.8)'],    # Bahaya (Merah)
             [1.0, 'rgba(0, 0, 0, 0.95)']      # Ekstrem (Hitam)
         ]
 
+        # A. Heatmap for Risks (Hotspots)
         if not df_risk.empty:
             fig_map.add_trace(go.Densitymapbox(
                 lat=df_risk['lat_center'],
                 lon=df_risk['lon_center'],
                 z=df_risk['heatmap_intensity'],
-                radius=40, # Slight increase for better visibility
+                radius=40,
                 colorscale=custom_heatmap_colors,
                 zmin=0,
                 zmax=1,
@@ -819,8 +820,25 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 hoverinfo='text',
                 text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']}", axis=1)
             ))
-        else:
-            # Invisible point to center map if No Risk
+
+        # B. Scatter Markers for SAFE areas (Prevention of "Empty Map" confusion)
+        # Display small, crisp green dots for safe areas instead of a blurry heatmap.
+        if not df_safe.empty:
+            fig_map.add_trace(go.Scattermapbox(
+                lat=df_safe['lat_center'],
+                lon=df_safe['lon_center'],
+                mode='markers',
+                marker=dict(
+                    size=8,
+                    color='#00C853', # Crisp Green
+                    opacity=0.6
+                ),
+                text=df_safe['NAMOBJ'],
+                hoverinfo='text'
+            ))
+
+        # Helper invisible point to ensure centering if absolutely no data (edge case)
+        if df_risk.empty and df_safe.empty:
             fig_map.add_trace(go.Scattermapbox(
                 lat=[-0.498], lon=[117.154], 
                 mode='markers', marker=dict(size=0, opacity=0)
