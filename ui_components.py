@@ -794,19 +794,28 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         fig_map = go.Figure()
 
         # 1. Heatmap Layer (Densitymapbox)
-        # Filter only points with risk > 0 to create isolated "blobs"
-        df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
+        # SHOW ALL points to ensure map is not empty, but use transparency for Safe areas.
+        # This fixes "Map Empty" perception when conditions are safe.
+        df_risk = df_map.copy()
         
+        # Update Colorscale: Safe (0.0) is Faint Green/Blue
+        custom_heatmap_colors = [
+            [0.0, 'rgba(0, 200, 83, 0.3)'],   # Aman (Hijau Pudar) - Visible!
+            [0.3, 'rgba(255, 235, 59, 0.6)'], # Waspada (Kuning)
+            [0.7, 'rgba(255, 0, 0, 0.8)'],    # Bahaya (Merah)
+            [1.0, 'rgba(0, 0, 0, 0.95)']      # Ekstrem (Hitam)
+        ]
+
         if not df_risk.empty:
             fig_map.add_trace(go.Densitymapbox(
                 lat=df_risk['lat_center'],
                 lon=df_risk['lon_center'],
                 z=df_risk['heatmap_intensity'],
-                radius=35, # Adjust radius for aesthetic "blob" size
+                radius=40, # Slight increase for better visibility
                 colorscale=custom_heatmap_colors,
                 zmin=0,
                 zmax=1,
-                opacity=0.85,
+                opacity=0.8,
                 hoverinfo='text',
                 text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']}", axis=1)
             ))
