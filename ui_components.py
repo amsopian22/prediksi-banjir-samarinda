@@ -623,33 +623,57 @@ def fetch_radar_timestamp():
 
 def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat: float, lon: float, selected_date=None):
     """
-    Renders the Dynamic Inundation Map with Time Slider.
+    Renders the Dynamic Inundation Map with Time Slider using Heatmap (Density).
     """
     import os
     if not geojson_data:
         st.warning("Data GeoJSON peta tidak tersedia.")
         return
 
-    feats = [f['properties'] for f in geojson_data['features']]
+    # Helper to calculate centroid from GeoJSON geometry
+    def get_centroid(geometry):
+        try:
+            coords = []
+            if geometry['type'] == 'Polygon':
+                coords = geometry['coordinates'][0] # Outer ring
+            elif geometry['type'] == 'MultiPolygon':
+                coords = geometry['coordinates'][0][0] # First polygon outer ring
+            
+            if coords:
+                # Simple arithmetic mean of vertices
+                lons = [p[0] for p in coords]
+                lats = [p[1] for p in coords]
+                return sum(lats)/len(lats), sum(lons)/len(lons)
+        except Exception:
+            return None, None
+        return None, None
+
+    # Prepare Data features with Centroids
+    feats = []
+    for f in geojson_data['features']:
+        props = f['properties']
+        c_lat, c_lon = get_centroid(f['geometry'])
+        if c_lat and c_lon:
+            props['lat_center'] = c_lat
+            props['lon_center'] = c_lon
+            feats.append(props)
+
     df_map = pd.DataFrame(feats)
     
     st.divider()
-    st.subheader("🗺️ Peta Simulasi & Dampak Genangan")
-    st.info("💡 **Petunjuk**: Peta ini dinamis. Gunakan **slider waktu** di bawah untuk melihat bagaimana air pasang akan menggenangi wilayah rendah dari jam ke jam.")
+    st.subheader("🗺️ Peta Simulasi & Heatmap Risiko")
+    st.info("💡 **Petunjuk**: Peta ini menggunakan **Heatmap**. Area berwarna **Gelap** menunjukkan lokasi dengan akumulasi risiko banjir tertinggi (Cekungan Air). Gunakan slider untuk melihat perubahan seiring pasang surut.")
 
-    # Dynamic Slider for Tide Simulation
-    # Check if selected_date is provided
+    # --- Dynamic Slider for Tide Simulation ---
     if selected_date:
         # Filter for specific date
         target_start = pd.to_datetime(selected_date).tz_localize(hourly_risk_df['time'].dt.tz)
         target_end = target_start + pd.Timedelta(days=1)
         future_tide_df = hourly_risk_df[(hourly_risk_df['time'] >= target_start) & (hourly_risk_df['time'] < target_end)]
     else:
-        # Fallback to next 48h but starting from CURRENT HOUR FLOOR
-        # Example: Now is 11:30. We want 11:00 to be included.
+        # Fallback to next 48h
         now = datetime.now(tz=hourly_risk_df['time'].dt.tz) if not hourly_risk_df.empty else datetime.now()
         now_floor = now.replace(minute=0, second=0, microsecond=0)
-        
         future_tide_df = hourly_risk_df[hourly_risk_df['time'] >= now_floor].head(48) 
     
     if not future_tide_df.empty:
@@ -672,7 +696,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             selected_time_str = st.select_slider(
                 "⏳ **Pilih Waktu Simulasi**:", 
                 options=time_options, 
-                value=time_options[default_idx], # Set Default to Next Hour
+                value=time_options[default_idx], 
                 key='map_simulation_slider'
             )
         
@@ -681,21 +705,15 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         selected_row = future_tide_df.loc[selected_idx]
         sim_tide_level = selected_row['est']
         
-        # Calculate Trend (vs previous hour logic if available in dataframe)
-        # If it's the first item, compare with next (reverse) or just 0
+        # Calculate Trend
         tide_trend = 0
         if selected_idx > future_tide_df.index[0]:
-             # We need to rely on the fact that the dataframe is sorted by time
              prev_level = future_tide_df.loc[selected_idx - 1, 'est'] if (selected_idx - 1) in future_tide_df.index else sim_tide_level
              tide_trend = sim_tide_level - prev_level
         elif selected_idx < future_tide_df.index[-1]:
-             # Use next data to see slope
              next_level = future_tide_df.loc[selected_idx + 1, 'est']
-             tide_trend = sim_tide_level - next_level # Just approximation
+             tide_trend = sim_tide_level - next_level
 
-        # Status Logic
-        is_danger = sim_tide_level > config.THRESHOLD_TIDE_PHYSICAL_DANGER
-        
         # Determine Arrow, Text, and Color
         if abs(tide_trend) < 0.05:
             arrow = "—"  # Em dash for stable
@@ -710,7 +728,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             color = "#00c853"  # Green
             text = "Surut"
 
-        # Display Current Tide Context (Custom HTML for single arrow control)
+        # Display Current Tide Context
         with col_ctrl2:
             st.markdown(f"""
             <div style="text-align: center;">
@@ -720,48 +738,50 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             </div>
             """, unsafe_allow_html=True)
 
-        # Calculate Vulnerability (Reverted to Mean Elevation)
-        # Rule: 
-        # Red (Danger): Mean Elev < Tide Level (Flooded)
-        # Yellow (Warning): Mean Elev < Tide Level + 1m (Risk)
-        # Green (Safe): Mean Elev > Tide Level + 1m
+        # --- Calculate Vulnerability Intensity (0 - 1) ---
+        # 1.0 = BAHAYA (HITAM) - Tenggelam
+        # 0.7 = SIAGA (MERAH) - Risiko Tinggi
+        # 0.3 = WASPADA (KUNING) - Risiko Rendah
+        # 0.0 = AMAN (TRANSPARAN)
         
-        def get_status_details(row):
+        def get_intensity(row):
             elev = row['mean_elev']
             adj_tide = sim_tide_level - config.TIDE_DATUM_OFFSET
             depth = adj_tide - elev
             
             if elev < adj_tide:
                 return 1.0, "BAHAYA (TENGGELAM)", f"{depth*100:.0f} cm"
+            elif elev < (adj_tide + 0.5):
+                return 0.7, "SIAGA (RISIKO TINGGI)", "Hampir Meluap"
             elif elev < (adj_tide + 1.0):
-                return 0.5, "WASPADA (RISIKO)", "Belum Tergenang"
+                return 0.3, "WASPADA (RISIKO)", "Belum Tergenang"
             else:
                 return 0.0, "AMAN", "Kering"
                 
-        # Apply logic to create multiple columns
-        df_map[['sim_score', 'status_text', 'depth_est']] = df_map.apply(
-            lambda x: pd.Series(get_status_details(x)), axis=1
+        # Apply logic
+        df_map[['heatmap_intensity', 'status_text', 'depth_est']] = df_map.apply(
+            lambda x: pd.Series(get_intensity(x)), axis=1
         )
         
-        # Custom Colorscale
-        custom_colorscale = [
-            [0.0, "green"],
-            [0.5, "yellow"],
-            [1.0, "red"]
+        # User Custom Colorscale: Transparent -> Yellow -> Red -> Black
+        custom_heatmap_colors = [
+            [0.0, 'rgba(0,0,0,0)'],           # Aman (Transparan)
+            [0.3, 'rgba(255, 235, 59, 0.5)'], # Waspada (Kuning Pudar)
+            [0.7, 'rgba(255, 0, 0, 0.8)'],    # Bahaya (Merah)
+            [1.0, 'rgba(0, 0, 0, 0.9)']       # Ekstrem (Hitam)
         ]
 
-        # Map Control Layout
+        # Map Layout Controls
         c_layer1, c_layer2 = st.columns([1, 1])
         with c_layer1:
-            # 1. Base Map Style Toggle
-            base_map_style = st.radio("Tampilan Dasar Peta:", ["Peta Jalan (Default)", "Citra Satelit"], horizontal=True)
-        
+            base_map_style = st.radio("Tampilan Dasar Peta:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
+            
         with c_layer2:
-            # 2. Overlay Layer Toggle
-            layer_mode = st.radio("Layer Overlay:", ["Gabungan (All)", "Hanya Polygon Risiko", "Hanya Radar Hujan"], horizontal=True)
+            st.write("") # Spacer
 
-        # Initialize Base Map Style
+        # Initialize Map Layers
         layers = []
+        mapbox_style = "carto-positron"
         if base_map_style == "Citra Satelit":
             mapbox_style = "white-bg"
             layers.append({
@@ -770,40 +790,37 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 "sourceattribution": "Esri World Imagery",
                 "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
             })
-        else:
-            mapbox_style = "carto-positron" # or "open-street-map" for more details
         
-        # 1. Base Polygon Layer (Risk Map)
-        if layer_mode in ["Gabungan (All)", "Hanya Polygon Risiko"]:
-            fig_map = go.Figure(go.Choroplethmapbox(
-                geojson=geojson_data,
-                locations=df_map['NAMOBJ'],
-                z=df_map['sim_score'],
-                featureidkey="properties.NAMOBJ",
-                colorscale=custom_colorscale,
+        fig_map = go.Figure()
+
+        # 1. Heatmap Layer (Densitymapbox)
+        # Filter only points with risk > 0 to create isolated "blobs"
+        df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
+        
+        if not df_risk.empty:
+            fig_map.add_trace(go.Densitymapbox(
+                lat=df_risk['lat_center'],
+                lon=df_risk['lon_center'],
+                z=df_risk['heatmap_intensity'],
+                radius=35, # Adjust radius for aesthetic "blob" size
+                colorscale=custom_heatmap_colors,
                 zmin=0,
                 zmax=1,
-                marker_opacity=0.6,
-                marker_line_width=1,
-                text=df_map['status_text'],
-                hovertemplate=(
-                    "<b>Negara/Kelurahan: %{location}</b><br>" +
-                    "Status: <b>%{text}</b><br>" +
-                    "Estimasi Genangan: <b>%{customdata[1]}</b><br>" +
-                    "Elevasi Tanah: %{customdata[0]:.1f} mdpl<br>" +
-                    "<extra></extra>"
-                ),
-                customdata=df_map[['mean_elev', 'depth_est']]
+                opacity=0.85,
+                hoverinfo='text',
+                text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']}", axis=1)
             ))
         else:
-            # Empty Base if Polygon disabled (just center map)
-            fig_map = go.Figure(go.Scattermapbox(lat=[-0.498], lon=[117.154], mode='markers', marker=dict(size=0, opacity=0)))
+            # Invisible point to center map if No Risk
+            fig_map.add_trace(go.Scattermapbox(
+                lat=[-0.498], lon=[117.154], 
+                mode='markers', marker=dict(size=0, opacity=0)
+            ))
 
+        # 2. Add Radar Layer (RainViewer) - "Like Rainviewer" Request
         radar_info = fetch_radar_timestamp()
         r_ts = None
-        
-        # 2. Add Radar Layer
-        if radar_info and layer_mode in ["Gabungan (All)", "Hanya Radar Hujan"]:
+        if radar_info:
             r_host, r_ts = radar_info
             layers.append({
                 "below": 'traces',
@@ -812,7 +829,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 "source": [
                     f"{r_host}/v2/radar/{r_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
                 ],
-                "opacity": 0.7,
+                "opacity": 0.6,
                 "minzoom": 0,
                 "maxzoom": 10
             })
@@ -820,22 +837,22 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         fig_map.update_layout(
             mapbox_style=mapbox_style, 
             mapbox_layers=layers,
-            mapbox_zoom=9.5, # Optimized: Lower zoom to avoid free-tier limit (z=10) on load.
-            mapbox_center={"lat": -0.498, "lon": 117.154}, # Fixed Center
+            mapbox_zoom=10.5, # Slightly zoomed in for heatmap view
+            mapbox_center={"lat": -0.498, "lon": 117.154},
             margin={"r":0,"t":0,"l":0,"b":0},
-            height=500,
+            height=550,
             showlegend=False,
             coloraxis_showscale=False
         )
         
-        st.plotly_chart(fig_map, use_container_width=True, key=f"map_sim_{r_ts or 'none'}")
+        st.plotly_chart(fig_map, use_container_width=True, key=f"map_heat_{r_ts or 'none'}")
         
-        # Legend Explanation
+        # Legend (Custom HTML)
         st.markdown("""
-        <div style='display: flex; gap: 20px; justify-content: center; font-size: 14px; margin-bottom: 20px;'>
-            <div style='background-color: #ffe6e6; color: #330000; padding: 5px 10px; border-radius: 5px; border: 1px solid #ffcccc;'><span style='color: #d50000;'>■</span> <b>TENGGELAM</b> (Elevasi < Pasut)</div>
-            <div style='background-color: #fffde7; color: #333300; padding: 5px 10px; border-radius: 5px; border: 1px solid #fff9c4;'><span style='color: #fbc02d;'>■</span> <b>WASPADA</b> (Selisih < 1m)</div>
-            <div style='background-color: #e8f5e9; color: #003300; padding: 5px 10px; border-radius: 5px; border: 1px solid #c8e6c9;'><span style='color: #2e7d32;'>■</span> <b>AMAN</b> (Dataran Tinggi)</div>
+        <div style='display: flex; gap: 15px; justify-content: center; font-size: 13px; margin-bottom: 20px; flex-wrap: wrap;'>
+            <div style='display: flex; align-items: center; gap: 5px;'><span style='width: 12px; height: 12px; background: black; border-radius: 50%; display: inline-block;'></span> <b>EKSTREM (HITAM)</b>: Tenggelam</div>
+            <div style='display: flex; align-items: center; gap: 5px;'><span style='width: 12px; height: 12px; background: red; border-radius: 50%; display: inline-block;'></span> <b>BAHAYA (MERAH)</b>: Risiko Tinggi</div>
+            <div style='display: flex; align-items: center; gap: 5px;'><span style='width: 12px; height: 12px; background: #FFEB3B; border-radius: 50%; display: inline-block;'></span> <b>WASPADA (KUNING)</b>: Risiko Rendah</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -848,4 +865,4 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 use_container_width=True, hide_index=True
             )
         with col_map2:
-            st.info("ℹ️ **Analisis Data DEM**: Peta ini menampilkan persentase wilayah di setiap Kelurahan yang berada di dataran rendah (Elevasi < 7 mdpl). Wilayah ini memiliki potensi genangan tertinggi saat terjadi pasang air laut > 2.5 meter.")
+            st.info("ℹ️ **Analisis Data DEM**: Heatmap di atas digerakkan oleh satu titik pusat (Centroid) per Kelurahan. Area gelap menunjukkan pusat kelurahan yang memiliki rata-rata elevasi rendah dan rentan terhadap pasang air laut.")
