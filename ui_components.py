@@ -777,7 +777,12 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             base_map_style = st.radio("Tampilan Dasar Peta:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
             
         with c_layer2:
-            st.write("") # Spacer
+            # Layer Control Panel (New Feature)
+            with st.expander("🗂️ Layer Control", expanded=False):
+                show_heatmap = st.checkbox("🔥 Heatmap Risiko", value=True, key="layer_heatmap")
+                show_boundaries = st.checkbox("📍 Batas Kelurahan", value=False, key="layer_boundaries")
+                show_radar = st.checkbox("🌧️ Radar Hujan (RainViewer)", value=True, key="layer_radar")
+                show_safe_markers = st.checkbox("✅ Marker Area Aman", value=True, key="layer_safe")
 
         # Initialize Map Layers
         layers = []
@@ -793,12 +798,11 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         
         fig_map = go.Figure()
 
-        # 1. Heatmap Layer (Densitymapbox)
-        # SHOW ONLY RISK > 0 to avoid "Green Fog" overlay.
+        # Prepare risk/safe dataframes for layers
         df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
-        df_safe = df_map[df_map['heatmap_intensity'] == 0].copy() # For safe points
+        df_safe = df_map[df_map['heatmap_intensity'] == 0].copy()
         
-        # Colorscale: Yellow (Low Risk) -> Red -> Black
+        # Colorscale for Heatmap: Yellow (Low Risk) -> Red -> Black
         custom_heatmap_colors = [
             [0.0, 'rgba(255, 235, 59, 0.0)'], # Start Transparent
             [0.1, 'rgba(255, 235, 59, 0.6)'], # Waspada (Kuning)
@@ -806,8 +810,24 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             [1.0, 'rgba(0, 0, 0, 0.95)']      # Ekstrem (Hitam)
         ]
 
-        # A. Heatmap for Risks (Hotspots)
-        if not df_risk.empty:
+        # --- LAYER 0: Kelurahan Boundaries (Polygon Outline) ---
+        if show_boundaries:
+            fig_map.add_trace(go.Choroplethmapbox(
+                geojson=geojson_data,
+                locations=df_map['NAMOBJ'],
+                z=[0] * len(df_map),  # Dummy value for uniform styling
+                featureidkey="properties.NAMOBJ",
+                colorscale=[[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],  # Transparent fill
+                marker_opacity=0,
+                marker_line_width=1.5,
+                marker_line_color='#3498db',  # Blue outline
+                showscale=False,
+                hoverinfo='text',
+                text=df_map['NAMOBJ']
+            ))
+
+        # --- LAYER 1: Heatmap for Risks (Hotspots) ---
+        if show_heatmap and not df_risk.empty:
             fig_map.add_trace(go.Densitymapbox(
                 lat=df_risk['lat_center'],
                 lon=df_risk['lon_center'],
@@ -818,22 +838,21 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 zmax=1,
                 opacity=0.8,
                 hoverinfo='text',
-                text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']}", axis=1)
+                text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']:.0%}<br>Estimasi: {x['depth_est']}", axis=1)
             ))
 
-        # B. Scatter Markers for SAFE areas (Prevention of "Empty Map" confusion)
-        # Display small, crisp green dots for safe areas instead of a blurry heatmap.
-        if not df_safe.empty:
+        # --- LAYER 2: Scatter Markers for SAFE areas ---
+        if show_safe_markers and not df_safe.empty:
             fig_map.add_trace(go.Scattermapbox(
                 lat=df_safe['lat_center'],
                 lon=df_safe['lon_center'],
                 mode='markers',
                 marker=dict(
                     size=8,
-                    color='#00C853', # Crisp Green
+                    color='#00C853',
                     opacity=0.6
                 ),
-                text=df_safe['NAMOBJ'],
+                text=df_safe.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: AMAN<br>Elevasi: {x['mean_elev']:.1f} m", axis=1),
                 hoverinfo='text'
             ))
 
@@ -844,10 +863,10 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 mode='markers', marker=dict(size=0, opacity=0)
             ))
 
-        # 2. Add Radar Layer (RainViewer) - "Like Rainviewer" Request
+        # --- LAYER 3: Radar Layer (RainViewer) ---
         radar_info = fetch_radar_timestamp()
         r_ts = None
-        if radar_info:
+        if show_radar and radar_info:
             r_host, r_ts = radar_info
             layers.append({
                 "below": 'traces',
@@ -876,10 +895,12 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         
         # Legend (Custom HTML)
         st.markdown("""
-        <div style='display: flex; gap: 15px; justify-content: center; font-size: 13px; margin-bottom: 20px; flex-wrap: wrap;'>
-            <div style='display: flex; align-items: center; gap: 5px;'><span style='width: 12px; height: 12px; background: black; border-radius: 50%; display: inline-block;'></span> <b>EKSTREM (HITAM)</b>: Tenggelam</div>
-            <div style='display: flex; align-items: center; gap: 5px;'><span style='width: 12px; height: 12px; background: red; border-radius: 50%; display: inline-block;'></span> <b>BAHAYA (MERAH)</b>: Risiko Tinggi</div>
-            <div style='display: flex; align-items: center; gap: 5px;'><span style='width: 12px; height: 12px; background: #FFEB3B; border-radius: 50%; display: inline-block;'></span> <b>WASPADA (KUNING)</b>: Risiko Rendah</div>
+        <div style='display: flex; gap: 12px; justify-content: center; font-size: 12px; margin-bottom: 20px; flex-wrap: wrap;'>
+            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: black; border-radius: 50%; display: inline-block;'></span> <b>EKSTREM</b>: Tenggelam</div>
+            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: red; border-radius: 50%; display: inline-block;'></span> <b>BAHAYA</b>: Risiko Tinggi</div>
+            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: #FFEB3B; border-radius: 50%; display: inline-block;'></span> <b>WASPADA</b>: Risiko Rendah</div>
+            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: #00C853; border-radius: 50%; display: inline-block;'></span> <b>AMAN</b>: Tidak Berisiko</div>
+            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; border: 2px solid #3498db; border-radius: 2px; display: inline-block;'></span> <b>Batas Kelurahan</b></div>
         </div>
         """, unsafe_allow_html=True)
     
