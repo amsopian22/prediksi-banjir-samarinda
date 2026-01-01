@@ -45,13 +45,24 @@ class SpatialFeatureExtractor:
                 self.crs = src.crs
                 self.bounds = src.bounds
                 logger.info(f"DEM Bounds: {self.bounds}")
+                
+                # Check if CRS is missing
+                if self.crs is None:
+                    logger.warning("DEM has no CRS defined. Assuming EPSG:4326 (WGS84).")
             
-            # Pysheds Grid
+            # Pysheds Grid - with CRS fix
             try:
                 self.grid = Grid.from_raster(self.dem_path)
                 self.dem_grid = self.grid.read_raster(self.dem_path)
+                
+                # If CRS is missing, set default to EPSG:4326
+                if self.grid.crs is None or str(self.grid.crs) == '':
+                    from pyproj import CRS
+                    self.grid.crs = CRS.from_epsg(4326)
+                    logger.info("Set Pysheds CRS to EPSG:4326")
+                    
             except Exception as e:
-                logger.warning(f"Pysheds load failed (likely CRS issue): {e}. Continuing with basic features.")
+                logger.warning(f"Pysheds load failed: {e}. Continuing with basic features.")
                 self.grid = None
 
             # --- Slope Calculation (Numpy) ---
