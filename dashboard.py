@@ -125,15 +125,11 @@ if spatial_extractor:
         lags_lookup = {}
         unique_dates = hourly_df['day_date'].unique()
         for d in unique_dates:
-            lag1_date = d - datetime.timedelta(days=1)
-            lag2_date = d - datetime.timedelta(days=2)
-            lag3_date = d - datetime.timedelta(days=3)
-            
-            lags_lookup[d] = {
-                'hujan_lag1': daily_sums.get(lag1_date, 0),
-                'hujan_lag2': daily_sums.get(lag2_date, 0),
-                'hujan_lag3': daily_sums.get(lag3_date, 0)
-            }
+            # Create lag dates for t-1 to t-7
+            lags_lookup[d] = {}
+            for lag_num in range(1, 8):
+                lag_date = d - datetime.timedelta(days=lag_num)
+                lags_lookup[d][f'hujan_lag{lag_num}'] = daily_sums.get(lag_date, 0)
             
             
             

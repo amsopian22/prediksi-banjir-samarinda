@@ -138,19 +138,57 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
     features_needed = model_pack.get("features", [])
     df_input = None
     
-    # ... (Prepare input logic similar to before, simplified for brevity but kept functional)
+    # ... (Prepare input logic for V2/V3)
     if "rain_sum_imputed" in features_needed:
-        # V2 MAPPING
+        # V2/V3 MAPPING
+        # Extract all lag values
+        h_lag1 = input_data.get("hujan_lag1", 0)
+        h_lag2 = input_data.get("hujan_lag2", 0)
+        h_lag3 = input_data.get("hujan_lag3", 0)
+        h_lag4 = input_data.get("hujan_lag4", 0)
+        h_lag5 = input_data.get("hujan_lag5", 0)
+        h_lag6 = input_data.get("hujan_lag6", 0)
+        h_lag7 = input_data.get("hujan_lag7", 0)
+        
+        rain_today = input_data.get("rain_sum_imputed", input_data.get("rain_rolling_24h", 0))
+        rain_intensity = input_data.get("rain_intensity_max", 0)
+        
+        # Calculate API (Antecedent Precipitation Index) with 7 days
+        k = 0.85  # Decay factor
+        api_7day = (
+            rain_today +
+            k * h_lag1 +
+            (k**2) * h_lag2 +
+            (k**3) * h_lag3 +
+            (k**4) * h_lag4 +
+            (k**5) * h_lag5 +
+            (k**6) * h_lag6 +
+            (k**7) * h_lag7
+        )
+        
+        # Rolling 3h approximation (for manual simulation, use intensity * 3)
+        rain_rolling_3h = input_data.get("rain_rolling_3h", rain_intensity * 3)
+        
         df_input = pd.DataFrame([{
-            "rain_sum_imputed": input_data.get("rain_sum_imputed", input_data.get("rain_rolling_24h", 0)),
-            "rain_intensity_max": input_data.get("rain_intensity_max", 0),
+            "rain_sum_imputed": rain_today,
+            "rain_intensity_max": rain_intensity,
+            "rain_rolling_3h": rain_rolling_3h,
             "soil_moisture_surface_mean": input_data.get("soil_moisture_surface_mean", 0.45),
             "soil_moisture_root_mean": input_data.get("soil_moisture_root_mean", 0.45),
             "pasut_msl_max": input_data.get("pasut_msl_max", 0),
-            "hujan_lag1": input_data.get("hujan_lag1", 0),
-            "hujan_lag2": input_data.get("hujan_lag2", 0)
+            "hujan_lag1": h_lag1,
+            "hujan_lag2": h_lag2,
+            "hujan_lag3": h_lag3,
+            "hujan_lag4": h_lag4,
+            "hujan_lag5": h_lag5,
+            "hujan_lag6": h_lag6,
+            "hujan_lag7": h_lag7,
+            "api_7day": api_7day
         }])
-        df_input = df_input[features_needed]
+        
+        # Only select features that the model expects
+        available_cols = [f for f in features_needed if f in df_input.columns]
+        df_input = df_input[available_cols]
     else:
         # V1 MAPPING (Fallback)
         # Helper for API calculation
@@ -314,22 +352,43 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
     features_needed = model_pack.get("features", [])
     logger.info(f"Predict Hourly: Features Needed = {features_needed}")
     
-    # Check if V2 features are needed
+    # Check if V2/V3 features are needed
     if "rain_sum_imputed" in features_needed:
-        # Construct V2 DataFrame
+        # Construct V2/V3 DataFrame
         X = pd.DataFrame()
         X['rain_sum_imputed'] = hourly_df['rain_rolling_24h']
         # For hourly series, rain_intensity_max is just the hourly precip
         X['rain_intensity_max'] = hourly_df['precipitation']
+        
+        # NEW: Rolling 3h rain
+        X['rain_rolling_3h'] = hourly_df['precipitation'].rolling(window=3, min_periods=1).sum()
+        
         # Soil Moisture (Assumed available in hourly_df from V2 fetcher)
         X['soil_moisture_surface_mean'] = hourly_df.get('soil_moisture_surface', 0.4) 
         X['soil_moisture_root_mean'] = hourly_df.get('soil_moisture_root', 0.4)
         X['pasut_msl_max'] = hourly_df['est']
-        X['hujan_lag1'] = hourly_df['hujan_lag1'] # Placeholder/0
-        X['hujan_lag2'] = hourly_df['hujan_lag2'] # Placeholder/0
         
-        # Ensure order matches
-        X = X[features_needed]
+        # Lag Features (t-1 to t-7)
+        for lag_num in range(1, 8):
+            col_name = f'hujan_lag{lag_num}'
+            X[col_name] = hourly_df.get(col_name, 0)
+        
+        # Calculate API 7 Day
+        k = config.API_DECAY_FACTOR
+        X['api_7day'] = (
+            X['rain_sum_imputed'] +
+            k * X['hujan_lag1'] +
+            (k**2) * X['hujan_lag2'] +
+            (k**3) * X['hujan_lag3'] +
+            (k**4) * X['hujan_lag4'] +
+            (k**5) * X['hujan_lag5'] +
+            (k**6) * X['hujan_lag6'] +
+            (k**7) * X['hujan_lag7']
+        )
+        
+        # Only select features that the model expects
+        available_cols = [f for f in features_needed if f in X.columns]
+        X = X[available_cols]
         
     else:
         # Fallback to V1 Legacy Features
