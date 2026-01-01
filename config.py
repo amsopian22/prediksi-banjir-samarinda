@@ -9,11 +9,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data-baru")
 REF_DIR = os.path.join(BASE_DIR, "data-refactored")
 DEM_DIR = os.path.join(BASE_DIR, "data-demhas")
+MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-MODEL_PATH = os.path.join(BASE_DIR, "model_banjir_v2_advanced.pkl")
-TIDE_MODEL_PATH = os.path.join(BASE_DIR, "tide_model_urs.pkl")
+MODEL_PATH = os.path.join(MODELS_DIR, "model_banjir_v2_advanced.pkl")
+TIDE_MODEL_PATH = os.path.join(MODELS_DIR, "tide_model_urs.pkl")
 DEM_PATH = os.path.join(DEM_DIR, "DEMNAS_1915-13_v1.0.tif")
-RISK_MAP_PATH = "data-refactored/samarinda_risk_map_calculated.geojson"
+RISK_MAP_PATH = os.path.join(REF_DIR, "samarinda_risk_map_calculated.geojson")
 
 # --- THRESHOLDS ---
 THRESHOLD_FLOOD_PROBABILITY = 0.40 # Optimized manually (Prev: 0.80). Lowered to capture heavy rain events.

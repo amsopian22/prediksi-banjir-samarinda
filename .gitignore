@@ -1,17 +1,49 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Environment
 .env
 .venv
 env/
 venv/
-.DS_Store
+.python-version
+
+# IDE
 .idea/
 .vscode/
-data/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Cache
 .cache.sqlite
+*.cache
+
+# Logs
+*.log
+streamlit_*.log
+
+# Credentials & Keys
 new-key-sentinel/
+*.json.key
+*credentials*.json
+
+# Backup files
+*.bak
 *.bak.csv
 *_bak.csv
-new-key-sentinel/
-.cache.sqlite
+*_backup.*
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Local testing
+*.local.*
