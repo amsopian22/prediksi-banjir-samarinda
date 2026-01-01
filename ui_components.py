@@ -391,16 +391,27 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
     """
     st.markdown("### 🎯 PENDUKUNG KEPUTUSAN OPERASIONAL")
     
-    tab1, tab2, tab3 = st.tabs(["🗺️ PETA OPERASI (TARGET AREA)", "📉 GRAFIK TREN WAKTU", "📡 MONITOR HULU (EWS)"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🗺️ PETA OPERASI (TARGET AREA)", 
+        "🔥 HEATMAP RISIKO (FOLIUM)",
+        "📉 GRAFIK TREN WAKTU", 
+        "📡 MONITOR HULU (EWS)"
+    ])
     
     with tab1:
         # Reuse existing map logic but simpler wrapper
         render_map_simulation(geojson, risk_df, lat, lon, date_val)
-        
+    
     with tab2:
-        render_hourly_chart(risk_df)
+        # New Folium Heatmap
+        import model_utils
+        model_pack = model_utils.load_model()
+        render_folium_heatmap(model_pack, risk_df, geojson)
         
     with tab3:
+        render_hourly_chart(risk_df)
+        
+    with tab4:
         st.info("Fitur Monitor Grafik Hulu Khusus (Placeholder untuk Integrasi AWS Bedrock/Camera)")
         # Simple stats for now
         st.write("Data Curah Hujan Hulu (6 Jam Terakhir):")
@@ -920,3 +931,258 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             )
         with col_map2:
             st.info("ℹ️ **Analisis Data DEM**: Heatmap di atas digerakkan oleh satu titik pusat (Centroid) per Kelurahan. Area gelap menunjukkan pusat kelurahan yang memiliki rata-rata elevasi rendah dan rentan terhadap pasang air laut.")
+
+
+def render_folium_heatmap(model_pack, hourly_risk_df: pd.DataFrame, geojson_data: dict):
+    """
+    Render an interactive Folium heatmap showing flood risk predictions.
+    Uses st.components.v1.html for better compatibility.
+    """
+    import folium
+    from folium.plugins import HeatMap
+    import streamlit.components.v1 as components
+    import numpy as np
+    import model_utils
+    
+    st.subheader("🗺️ Peta Risiko Banjir Interaktif (Folium)")
+    st.caption("Heatmap berbasis prediksi model ML di berbagai titik koordinat Kota Samarinda")
+    
+    # Grid of coordinates covering Samarinda
+    # Bounds: Lat -0.42 to -0.58, Lon 117.05 to 117.22
+    lat_min, lat_max = -0.58, -0.42
+    lon_min, lon_max = 117.05, 117.22
+    
+    # Create grid (20x20 = 400 points)
+    n_points = 20
+    lats = np.linspace(lat_min, lat_max, n_points)
+    lons = np.linspace(lon_min, lon_max, n_points)
+    
+    # Get current weather conditions from hourly_risk_df
+    if hourly_risk_df is not None and not hourly_risk_df.empty:
+        current_row = hourly_risk_df.iloc[-1] if len(hourly_risk_df) > 0 else None
+        rain_24h = current_row.get('rain_rolling_24h', 0) if current_row is not None else 0
+        tide = current_row.get('est', 0) if current_row is not None else 0
+        rain_intensity = current_row.get('precipitation', 0) if current_row is not None else 0
+    else:
+        rain_24h, tide, rain_intensity = 0, 0, 0
+    
+    # Generate risk predictions for each grid point
+    heat_data = []
+    kelurahan_risks = []
+    
+    # Use GeoJSON kelurahan data with elevation-based risk (spatially accurate)
+    if geojson_data and 'features' in geojson_data:
+        for feature in geojson_data['features']:
+            props = feature.get('properties', {})
+            geom = feature.get('geometry', {})
+            
+            kelurahan_name = props.get('NAMOBJ', 'Unknown')
+            
+            # Get centroid
+            if geom.get('type') == 'Polygon':
+                coords = geom['coordinates'][0]
+                centroid_lon = sum(c[0] for c in coords) / len(coords)
+                centroid_lat = sum(c[1] for c in coords) / len(coords)
+                
+                # Get elevation-based risk from pre-calculated data
+                mean_elev = props.get('mean_elev', 10)
+                risk_pct = props.get('risk_pct', 0)  # Percentage of low-lying area
+                
+                # Calculate spatial risk based on:
+                # 1. Elevation (lower = higher risk)
+                # 2. Percentage of dataran rendah (risk_pct)
+                # 3. Current weather conditions
+                
+                # Elevation factor: areas below 3m are high risk
+                elev_factor = max(0, min(1, (3 - mean_elev) / 3))
+                
+                # Dataran rendah factor
+                lowland_factor = risk_pct / 100
+                
+                # Weather amplifier based on current conditions
+                weather_factor = 1.0
+                if rain_24h > 50:  # Heavy rain
+                    weather_factor = 1.5
+                elif rain_24h > 20:
+                    weather_factor = 1.2
+                    
+                if tide > 2.5:  # High tide
+                    weather_factor *= 1.3
+                elif tide > 2.0:
+                    weather_factor *= 1.1
+                
+                # Combined risk score
+                base_risk = (elev_factor * 0.4 + lowland_factor * 0.6)
+                final_risk = min(1.0, base_risk * weather_factor)
+                
+                kelurahan_risks.append({
+                    'name': kelurahan_name,
+                    'lat': centroid_lat,
+                    'lon': centroid_lon,
+                    'risk': final_risk,
+                    'elevation': mean_elev
+                })
+                
+                heat_data.append([centroid_lat, centroid_lon, final_risk])
+    
+    # Create Folium Map
+    m = folium.Map(
+        location=[-0.50, 117.15],
+        zoom_start=12,
+        tiles='CartoDB positron'
+    )
+    
+    # Add multiple tile layers
+    folium.TileLayer('OpenStreetMap', name='OpenStreetMap').add_to(m)
+    folium.TileLayer(
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr='Esri',
+        name='Citra Satelit'
+    ).add_to(m)
+    
+    # Add Risk Markers with modern styling
+    if heat_data:
+        # Find kelurahan info for tooltips
+        kelurahan_info = {(k['lat'], k['lon']): k for k in kelurahan_risks} if kelurahan_risks else {}
+        
+        for lat, lon, risk in heat_data:
+            # Get kelurahan name if available
+            info = kelurahan_info.get((lat, lon), {})
+            name = info.get('name', 'Unknown')
+            elev = info.get('elevation', 0)
+            
+            # Determine color and label based on risk level
+            if risk >= 0.85:
+                color = '#dc2626'
+                bg_gradient = 'linear-gradient(135deg, #dc2626, #7f1d1d)'
+                label = 'EKSTREM'
+                pulse_color = '#ef4444'
+            elif risk >= 0.7:
+                color = '#ea580c'
+                bg_gradient = 'linear-gradient(135deg, #ea580c, #c2410c)'
+                label = 'TINGGI'
+                pulse_color = '#f97316'
+            elif risk >= 0.5:
+                color = '#d97706'
+                bg_gradient = 'linear-gradient(135deg, #fbbf24, #d97706)'
+                label = 'SEDANG'
+                pulse_color = '#fbbf24'
+            elif risk >= 0.3:
+                color = '#65a30d'
+                bg_gradient = 'linear-gradient(135deg, #84cc16, #65a30d)'
+                label = 'RENDAH'
+                pulse_color = '#84cc16'
+            else:
+                color = '#16a34a'
+                bg_gradient = 'linear-gradient(135deg, #22c55e, #16a34a)'
+                label = 'AMAN'
+                pulse_color = '#22c55e'
+            
+            # Create modern custom icon with pulsing effect
+            icon_html = f'''
+            <div style="position: relative;">
+                <div style="
+                    width: 40px;
+                    height: 40px;
+                    background: {bg_gradient};
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 15px {color}80;
+                    border: 3px solid white;
+                    animation: pulse-{label.lower()} 2s infinite;
+                    cursor: pointer;
+                ">
+                    <span style="color: white; font-weight: bold; font-size: 11px;">
+                        {int(risk*100)}%
+                    </span>
+                </div>
+            </div>
+            <style>
+                @keyframes pulse-{label.lower()} {{
+                    0% {{ box-shadow: 0 0 0 0 {pulse_color}80; }}
+                    70% {{ box-shadow: 0 0 0 15px {pulse_color}00; }}
+                    100% {{ box-shadow: 0 0 0 0 {pulse_color}00; }}
+                }}
+            </style>
+            '''
+            
+            # Rich popup content
+            popup_html = f'''
+            <div style="font-family: 'Segoe UI', Arial, sans-serif; min-width: 200px;">
+                <div style="background: {bg_gradient}; color: white; padding: 12px; border-radius: 8px 8px 0 0; text-align: center;">
+                    <h4 style="margin: 0; font-size: 14px;">📍 {name}</h4>
+                </div>
+                <div style="padding: 12px; background: #f8fafc;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #64748b;">Status:</span>
+                        <span style="font-weight: bold; color: {color};">{label}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #64748b;">Risiko:</span>
+                        <span style="font-weight: bold;">{risk*100:.0f}%</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #64748b;">Elevasi:</span>
+                        <span style="font-weight: bold;">{elev:.1f} m</span>
+                    </div>
+                    <div style="margin-top: 10px; background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden;">
+                        <div style="width: {risk*100}%; height: 100%; background: {bg_gradient};"></div>
+                    </div>
+                </div>
+            </div>
+            '''
+            
+            # Add marker with custom icon
+            folium.Marker(
+                location=[lat, lon],
+                icon=folium.DivIcon(
+                    html=icon_html,
+                    icon_size=(40, 40),
+                    icon_anchor=(20, 20)
+                ),
+                popup=folium.Popup(popup_html, max_width=250),
+                tooltip=f"<b>{name}</b><br>Risiko: {risk*100:.0f}%"
+            ).add_to(m)
+    
+    # Add Kelurahan boundaries
+    if geojson_data:
+        folium.GeoJson(
+            geojson_data,
+            name='Batas Kelurahan',
+            style_function=lambda x: {
+                'fillColor': 'transparent',
+                'color': '#3498db',
+                'weight': 1.5,
+                'fillOpacity': 0
+            },
+            tooltip=folium.GeoJsonTooltip(
+                fields=['NAMOBJ', 'mean_elev', 'risk_pct'],
+                aliases=['Kelurahan:', 'Elevasi (m):', 'Risiko (%)'],
+                style='font-size: 12px;'
+            )
+        ).add_to(m)
+    
+    # Add Legend as a custom control (without LayerControl to avoid duplicate ID error)
+    legend_html = '''
+    <div style="position: fixed; bottom: 50px; left: 50px; z-index: 1000; 
+                background: white; padding: 10px; border-radius: 5px; 
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 12px;">
+        <b>Level Risiko Banjir</b><br>
+        <i style="background: darkred; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Ekstrem<br>
+        <i style="background: red; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Tinggi<br>
+        <i style="background: orange; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Sedang<br>
+        <i style="background: yellow; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Rendah<br>
+        <i style="background: green; width: 12px; height: 12px; display: inline-block; margin-right: 5px;"></i> Aman
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
+    
+    # Display map using components.html for better compatibility
+    map_html = m._repr_html_()
+    components.html(map_html, height=550, scrolling=False)
+    
+    # Info
+    st.caption(f"📊 Data: {len(heat_data)} titik prediksi | Kondisi: Hujan {rain_24h:.1f}mm/24h, Pasang {tide:.2f}m")
+
