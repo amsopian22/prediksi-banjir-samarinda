@@ -603,22 +603,28 @@ def render_hourly_chart(hourly_risk_df: pd.DataFrame):
     
     st.plotly_chart(fig, use_container_width=True)
 
-@st.cache_data(ttl=600) # Cache for 10 minutes
+@st.cache_data(ttl=300) # Cache for 5 minutes
 def fetch_radar_timestamp():
     """Fetch the latest available radar timestamp and host from RainViewer API."""
     import requests
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         url = "https://api.rainviewer.com/public/weather-maps.json"
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
             host = data.get("host", "https://tilecache.rainviewer.com")
             # Get the very latest past timestamp
             if "radar" in data and "past" in data["radar"] and len(data["radar"]["past"]) > 0:
                 latest = data["radar"]["past"][-1]
+                logger.info(f"RainViewer radar loaded: timestamp={latest['time']}")
                 return host, latest["time"]
+        else:
+            logger.warning(f"RainViewer API returned status {response.status_code}")
     except Exception as e:
-        pass # Fail silently and return None
+        logger.warning(f"RainViewer API error: {e}")
     return None
 
 def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat: float, lon: float, selected_date=None):

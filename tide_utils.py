@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 import pickle
 import os
+import config
 
-MODEL_FILE = 'tide_model_urs.pkl'
+MODEL_FILE = config.TIDE_MODEL_PATH
 
 def train_tide_model(df, time_col='t', value_col='est', lat=-0.5022):
     """
