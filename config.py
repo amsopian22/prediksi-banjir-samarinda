@@ -11,7 +11,7 @@ REF_DIR = os.path.join(BASE_DIR, "data-refactored")
 DEM_DIR = os.path.join(BASE_DIR, "data-demhas")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-MODEL_PATH = os.path.join(MODELS_DIR, "model_banjir_v3_enhanced.pkl")
+MODEL_PATH = os.path.join(MODELS_DIR, "model_banjir_v6_enhanced.pkl")
 TIDE_MODEL_PATH = os.path.join(MODELS_DIR, "tide_model_urs.pkl")
 DEM_PATH = os.path.join(DEM_DIR, "DEMNAS_1915-13_v1.0.tif")
 RISK_MAP_PATH = os.path.join(REF_DIR, "samarinda_risk_map_calculated.geojson")

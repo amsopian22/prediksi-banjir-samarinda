@@ -1278,15 +1278,17 @@ def render_shap_explanation(risk_df: pd.DataFrame):
     # Get current conditions from risk_df
     if risk_df is not None and not risk_df.empty:
         current = risk_df.iloc[-1]
+        rain_24h = current.get('rain_rolling_24h', 0)
         input_data = {
-            "rain_sum_imputed": current.get('rain_rolling_24h', 0),
+            "rain_sum_imputed": rain_24h,
             "rain_intensity_max": current.get('precipitation', 0),
-            "rain_rolling_3h": current.get('rain_rolling_24h', 0) / 8,
+            "rain_rolling_3h": rain_24h / 8,
             "pasut_msl_max": current.get('est', 0),
             "soil_moisture_surface_mean": 0.45,
             "soil_moisture_root_mean": 0.45,
-            "hujan_lag1": 0, "hujan_lag2": 0, "hujan_lag3": 0,
-            "hujan_lag4": 0, "hujan_lag5": 0, "hujan_lag6": 0, "hujan_lag7": 0
+            "hujan_lag1": rain_24h * 0.8, "hujan_lag2": rain_24h * 0.6, "hujan_lag3": rain_24h * 0.4,
+            "hujan_lag4": rain_24h * 0.2, "hujan_lag5": 0, "hujan_lag6": 0, "hujan_lag7": 0,
+            "api_7day": rain_24h * 2.5  # Antecedent Precipitation Index
         }
     else:
         input_data = {
@@ -1297,7 +1299,8 @@ def render_shap_explanation(risk_df: pd.DataFrame):
             "soil_moisture_surface_mean": 0.45,
             "soil_moisture_root_mean": 0.45,
             "hujan_lag1": 10, "hujan_lag2": 5, "hujan_lag3": 2,
-            "hujan_lag4": 0, "hujan_lag5": 0, "hujan_lag6": 0, "hujan_lag7": 0
+            "hujan_lag4": 0, "hujan_lag5": 0, "hujan_lag6": 0, "hujan_lag7": 0,
+            "api_7day": 50  # Antecedent Precipitation Index
         }
     
     # Get explanation

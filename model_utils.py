@@ -138,22 +138,24 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
     features_needed = model_pack.get("features", [])
     df_input = None
     
-    # ... (Prepare input logic for V2/V3)
+    # Prepare input logic for V2/V3/V6
     if "rain_sum_imputed" in features_needed:
-        # V2/V3 MAPPING
         # Extract all lag values
-        h_lag1 = input_data.get("hujan_lag1", 0)
-        h_lag2 = input_data.get("hujan_lag2", 0)
-        h_lag3 = input_data.get("hujan_lag3", 0)
-        h_lag4 = input_data.get("hujan_lag4", 0)
-        h_lag5 = input_data.get("hujan_lag5", 0)
-        h_lag6 = input_data.get("hujan_lag6", 0)
-        h_lag7 = input_data.get("hujan_lag7", 0)
+        h_lag1 = input_data.get("rain_lag1", input_data.get("hujan_lag1", 0))
+        h_lag2 = input_data.get("rain_lag2", input_data.get("hujan_lag2", 0))
+        h_lag3 = input_data.get("rain_lag3", input_data.get("hujan_lag3", 0))
+        h_lag4 = input_data.get("rain_lag4", input_data.get("hujan_lag4", 0))
+        h_lag5 = input_data.get("rain_lag5", input_data.get("hujan_lag5", 0))
+        h_lag6 = input_data.get("rain_lag6", input_data.get("hujan_lag6", 0))
+        h_lag7 = input_data.get("rain_lag7", input_data.get("hujan_lag7", 0))
         
         rain_today = input_data.get("rain_sum_imputed", input_data.get("rain_rolling_24h", 0))
         rain_intensity = input_data.get("rain_intensity_max", 0)
+        pasut_max = input_data.get("pasut_msl_max", 0)
+        soil_surface = input_data.get("soil_moisture_surface_mean", 0.45)
+        soil_root = input_data.get("soil_moisture_root_mean", 0.45)
         
-        # Calculate API (Antecedent Precipitation Index) with 7 days
+        # Calculate derived features
         k = 0.85  # Decay factor
         api_7day = (
             rain_today +
@@ -166,25 +168,49 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
             (k**7) * h_lag7
         )
         
-        # Rolling 3h approximation (for manual simulation, use intensity * 3)
-        rain_rolling_3h = input_data.get("rain_rolling_3h", rain_intensity * 3)
-        
-        df_input = pd.DataFrame([{
+        # Build comprehensive feature dict
+        feature_dict = {
+            # Original V4 features (25)
             "rain_sum_imputed": rain_today,
             "rain_intensity_max": rain_intensity,
-            "rain_rolling_3h": rain_rolling_3h,
-            "soil_moisture_surface_mean": input_data.get("soil_moisture_surface_mean", 0.45),
-            "soil_moisture_root_mean": input_data.get("soil_moisture_root_mean", 0.45),
-            "pasut_msl_max": input_data.get("pasut_msl_max", 0),
-            "hujan_lag1": h_lag1,
-            "hujan_lag2": h_lag2,
-            "hujan_lag3": h_lag3,
-            "hujan_lag4": h_lag4,
-            "hujan_lag5": h_lag5,
-            "hujan_lag6": h_lag6,
-            "hujan_lag7": h_lag7,
-            "api_7day": api_7day
-        }])
+            "soil_moisture_surface_mean": soil_surface,
+            "soil_moisture_root_mean": soil_root,
+            "soil_saturation_index": (soil_surface + soil_root) / 2,
+            "pasut_msl_max": pasut_max,
+            "rain_lag1": h_lag1,
+            "rain_lag2": h_lag2,
+            "rain_lag3": h_lag3,
+            "rain_lag4": h_lag4,
+            "rain_lag5": h_lag5,
+            "rain_lag6": h_lag6,
+            "rain_lag7": h_lag7,
+            "rain_cumsum_3d": input_data.get("rain_cumsum_3d", rain_today + h_lag1 + h_lag2),
+            "rain_cumsum_7d": input_data.get("rain_cumsum_7d", sum([rain_today, h_lag1, h_lag2, h_lag3, h_lag4, h_lag5, h_lag6])),
+            "tide_rain_interaction": pasut_max * rain_today,
+            "is_high_tide": 1 if pasut_max > 2.5 else 0,
+            "is_heavy_rain": 1 if rain_today > 50 else 0,
+            "api_7day": api_7day,
+            "month_sin": input_data.get("month_sin", 0),
+            "month_cos": input_data.get("month_cos", 1),
+            "is_rainy_season": input_data.get("is_rainy_season", 1),
+            "is_weekend": input_data.get("is_weekend", 0),
+            "prev_flood_30d": input_data.get("prev_flood_30d", 0),
+            "prev_meluap_30d": input_data.get("prev_meluap_30d", 0),
+            
+            # New V6 features (10)
+            "rain_intensity_3h": input_data.get("rain_intensity_3h", rain_intensity * 3),
+            "rain_burst_count": input_data.get("rain_burst_count", 0),
+            "soil_saturation_trend": input_data.get("soil_saturation_trend", 0),
+            "tide_rain_sync": 1 if (pasut_max > 2.5 and rain_today > 50) else 0,
+            "consecutive_rain_days": input_data.get("consecutive_rain_days", 0),
+            "hour_risk_factor": input_data.get("hour_risk_factor", 1.0),
+            "drain_capacity_index": input_data.get("drain_capacity_index", feature_dict.get("rain_cumsum_7d", 0) / 200.0),
+            "upstream_rain_6h": input_data.get("upstream_rain_6h", 0),
+            "wind_speed_max": input_data.get("wind_speed_max", 0),
+            "rainfall_acceleration": input_data.get("rainfall_acceleration", 0),
+        }
+        
+        df_input = pd.DataFrame([feature_dict])
         
         # Only select features that the model expects
         available_cols = [f for f in features_needed if f in df_input.columns]

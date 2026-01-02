@@ -1,0 +1,10 @@
+artifact_location: file:///Users/bidang4/Projects/1_Gov_Projects/dashboard_eksekutif/prediksi_banjir/mlruns/585900259714689924/models/m-7ec697d862614ecaa0b8540f1233411c/artifacts
+creation_timestamp: 1767348024801
+experiment_id: '585900259714689924'
+last_updated_timestamp: 1767348029815
+model_id: m-7ec697d862614ecaa0b8540f1233411c
+model_type: null
+name: model
+source_run_id: 97d29ea5d56741b5ba86340c48aa10e0
+status: 2
+status_message: null

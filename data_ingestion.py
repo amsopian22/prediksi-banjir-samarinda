@@ -37,7 +37,7 @@ class WeatherFetcher:
             params = {
                 "latitude": lat,
                 "longitude": lon,
-                "hourly": ["precipitation", "soil_moisture_0_to_1cm", "soil_moisture_1_to_3cm"],
+                "hourly": ["precipitation", "soil_moisture_0_to_1cm", "soil_moisture_1_to_3cm", "wind_speed_10m"],
                 "timezone": config.TIMEZONE,
                 "past_days": 3,
                 "forecast_days": 14
@@ -52,6 +52,7 @@ class WeatherFetcher:
             hourly_precip = hourly.Variables(0).ValuesAsNumpy()
             hourly_soil0 = hourly.Variables(1).ValuesAsNumpy()
             hourly_soil1 = hourly.Variables(2).ValuesAsNumpy()
+            hourly_wind = hourly.Variables(3).ValuesAsNumpy()
             
             hourly_data = {
                 "date": pd.date_range(
@@ -64,12 +65,15 @@ class WeatherFetcher:
             hourly_data["precipitation"] = hourly_precip
             hourly_data["soil_moisture_surface"] = hourly_soil0
             hourly_data["soil_moisture_root"] = hourly_soil1
+            hourly_data["wind_speed"] = hourly_wind
             
             df = pd.DataFrame(data = hourly_data)
             
             # Feature Engineering on the fly (Rolling, etc)
             df['rain_rolling_24h'] = df['precipitation'].rolling(window=24, min_periods=1).sum()
             df['rain_rolling_3h'] = df['precipitation'].rolling(window=3, min_periods=1).sum()
+            df['wind_speed_max_24h'] = df['wind_speed'].rolling(window=24, min_periods=1).max()
+            
             
             # Convert timezone
             df['date'] = df['date'].dt.tz_convert(config.TIMEZONE)
