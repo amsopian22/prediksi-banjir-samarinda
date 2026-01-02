@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: flood-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./docs:/app/docs
+      - ./mlruns:/app/mlruns
+    environment:
+      - PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    restart: unless-stopped
+    depends_on:
+      - mlflow
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlflow-server
+    ports:
+      - "5000:5000"
+    command: mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root ./mlruns --host 0.0.0.0
+    volumes:
+      - ./mlruns:/mlruns
+      - ./mlflow.db:/mlflow.db
+    restart: unless-stopped

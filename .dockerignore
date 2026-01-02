@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+
+# Data & Models (Mount these as volumes instead)
+# We might want to keep some initial models/data for the image to work out of the box,
+# but generally large temp files should be ignored.
+data-raw/
+# models/ # Keep models in build if we want self-contained image, or ignore if volume only.
+# data/   # Keep data in build for initial state?
+
+# Streamlit
+.streamlit/secrets.toml
+.streamlit/config.toml # Optional, maybe we want to bake config in
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Brain
+.gemini/

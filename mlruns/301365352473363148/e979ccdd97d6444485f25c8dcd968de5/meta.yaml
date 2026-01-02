@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/bidang4/Projects/1_Gov_Projects/dashboard_eksekutif/prediksi_banjir/mlruns/301365352473363148/e979ccdd97d6444485f25c8dcd968de5/artifacts
+end_time: 1767335788110
+entry_point_name: ''
+experiment_id: '301365352473363148'
+lifecycle_stage: active
+run_id: e979ccdd97d6444485f25c8dcd968de5
+run_name: v5_XGBoost_smote
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1767335784660
+status: 3
+tags: []
+user_id: bidang4

@@ -1,0 +1,22 @@
+artifact_path: file:///Users/bidang4/Projects/1_Gov_Projects/dashboard_eksekutif/prediksi_banjir/mlruns/301365352473363148/models/m-289ac676c4b24093ae414c769719ddfc/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.7
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.5.1
+mlflow_version: 3.8.1
+model_id: m-289ac676c4b24093ae414c769719ddfc
+model_size_bytes: 363926
+model_uuid: m-289ac676c4b24093ae414c769719ddfc
+prompts: null
+run_id: e979ccdd97d6444485f25c8dcd968de5
+utc_time_created: '2026-01-02 06:36:24.677634'

@@ -391,11 +391,12 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
     """
     st.markdown("### 🎯 PENDUKUNG KEPUTUSAN OPERASIONAL")
     
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🗺️ PETA OPERASI (TARGET AREA)", 
         "🔥 HEATMAP RISIKO (FOLIUM)",
         "📉 GRAFIK TREN WAKTU", 
-        "📡 MONITOR HULU (EWS)"
+        "📡 MONITOR HULU (EWS)",
+        "🧠 EXPLAINABILITY (SHAP)"
     ])
     
     with tab1:
@@ -416,6 +417,9 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
         # Simple stats for now
         st.write("Data Curah Hujan Hulu (6 Jam Terakhir):")
         # Logic to be connected in dashboard.py if needed, for now placeholders
+    
+    with tab5:
+        render_shap_explanation(risk_df)
         
 # ---------------- LEGACY FUNCTIONS (KEPT FOR COMPATIBILITY UNTIL SWAP) ----------------
 
@@ -1145,24 +1149,90 @@ def render_folium_heatmap(model_pack, hourly_risk_df: pd.DataFrame, geojson_data
                 popup=folium.Popup(popup_html, max_width=250),
                 tooltip=f"<b>{name}</b><br>Risiko: {risk*100:.0f}%"
             ).add_to(m)
-    
+            
+    # Add RainViewer Radar Layer (Live/Latest)
+    # Get latest host and timestamp if available
+    radar_host, radar_ts = fetch_radar_timestamp()
+    if radar_host and radar_ts:
+        folium.TileLayer(
+            tiles=f"{radar_host}/v2/radar/{radar_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png",
+            attr="RainViewer",
+            name="🌧️ Radar Hujan (RainViewer)",
+            overlay=True,
+            opacity=0.7
+        ).add_to(m)
+
     # Add Kelurahan boundaries
     if geojson_data:
+        def style_function(feature):
+            return {
+                'fillColor': 'transparent',
+                'color': '#2980b9',
+                'weight': 2,
+                'fillOpacity': 0
+            }
+        
         folium.GeoJson(
             geojson_data,
             name='Batas Kelurahan',
-            style_function=lambda x: {
-                'fillColor': 'transparent',
-                'color': '#3498db',
-                'weight': 1.5,
-                'fillOpacity': 0
-            },
+            style_function=style_function,
             tooltip=folium.GeoJsonTooltip(
                 fields=['NAMOBJ', 'mean_elev', 'risk_pct'],
-                aliases=['Kelurahan:', 'Elevasi (m):', 'Risiko (%)'],
-                style='font-size: 12px;'
+                aliases=['Kelurahan:', 'Elevasi (m):', 'Risiko Dataran Rendah (%):'],
+                style='font-size: 12px; font-weight: bold;'
             )
         ).add_to(m)
+        
+    # --- Impact Analysis Integration ---
+    try:
+        import impact_analysis
+        import geopandas as gpd
+        from shapely.geometry import Polygon
+        
+        # Create GeoDataFrame from risks
+        if kelurahan_risks:
+            risk_polys = []
+            for k in kelurahan_risks:
+                if k['risk'] > 0.5: # Consider high risk for impact
+                     # Create a small buffer around the centroid as a proxy for the risk area
+                     # In a real scenario, use the actual kelurahan geometry if available in props
+                     p = Polygon([(k['lon']-0.005, k['lat']-0.005), 
+                                  (k['lon']+0.005, k['lat']-0.005), 
+                                  (k['lon']+0.005, k['lat']+0.005), 
+                                  (k['lon']-0.005, k['lat']+0.005)])
+                     risk_polys.append({'geometry': p, 'risk': k['risk']})
+            
+            if risk_polys:
+                risk_gdf = gpd.GeoDataFrame(risk_polys)
+                risk_gdf.crs = "EPSG:4326"
+                
+                # Analyze Impact
+                impact = impact_analysis.analyze_impact(risk_gdf)
+                
+                # Show Impact Stats
+                st.markdown(f"""
+                <div style="background: rgba(255, 255, 255, 0.9); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 5px solid #dc2626; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <h4 style="margin: 0 0 10px 0; color: #dc2626;">🚨 Estimasi Dampak Banjir</h4>
+                    <div style="display: flex; gap: 20px;">
+                        <div>
+                            <span style="font-size: 24px; font-weight: bold; color: #1e293b;">{impact['total_affected']}</span><br>
+                            <span style="font-size: 12px; color: #64748b;">Total Bangunan Terdampak</span>
+                        </div>
+                        <div>
+                            <span style="font-size: 24px; font-weight: bold; color: #d97706;">{impact['schools_affected']}</span><br>
+                            <span style="font-size: 12px; color: #64748b;">Sekolah</span>
+                        </div>
+                        <div>
+                            <span style="font-size: 24px; font-weight: bold; color: #dc2626;">{impact['hospitals_affected']}</span><br>
+                            <span style="font-size: 12px; color: #64748b;">Fasilitas Kesehatan</span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+    except Exception as e:
+        print(f"Impact Analysis Error: {e}")
+
     
     # Add Legend as a custom control (without LayerControl to avoid duplicate ID error)
     legend_html = '''
@@ -1186,3 +1256,136 @@ def render_folium_heatmap(model_pack, hourly_risk_df: pd.DataFrame, geojson_data
     # Info
     st.caption(f"📊 Data: {len(heat_data)} titik prediksi | Kondisi: Hujan {rain_24h:.1f}mm/24h, Pasang {tide:.2f}m")
 
+
+def render_shap_explanation(risk_df: pd.DataFrame):
+    """
+    Render SHAP-based model explainability visualization.
+    Shows which features contribute most to flood risk predictions.
+    """
+    import model_utils
+    import shap_explainer
+    
+    st.subheader("🧠 Explainable AI - Interpretasi Model")
+    st.caption("Analisis faktor-faktor yang berkontribusi terhadap prediksi risiko banjir menggunakan SHAP (SHapley Additive exPlanations)")
+    
+    # Load model
+    model_pack = model_utils.load_model()
+    
+    if model_pack is None:
+        st.warning("⚠️ Model belum dimuat. Tidak dapat menampilkan explainability.")
+        return
+    
+    # Get current conditions from risk_df
+    if risk_df is not None and not risk_df.empty:
+        current = risk_df.iloc[-1]
+        input_data = {
+            "rain_sum_imputed": current.get('rain_rolling_24h', 0),
+            "rain_intensity_max": current.get('precipitation', 0),
+            "rain_rolling_3h": current.get('rain_rolling_24h', 0) / 8,
+            "pasut_msl_max": current.get('est', 0),
+            "soil_moisture_surface_mean": 0.45,
+            "soil_moisture_root_mean": 0.45,
+            "hujan_lag1": 0, "hujan_lag2": 0, "hujan_lag3": 0,
+            "hujan_lag4": 0, "hujan_lag5": 0, "hujan_lag6": 0, "hujan_lag7": 0
+        }
+    else:
+        input_data = {
+            "rain_sum_imputed": 20,
+            "rain_intensity_max": 5,
+            "rain_rolling_3h": 7.5,
+            "pasut_msl_max": 2.0,
+            "soil_moisture_surface_mean": 0.45,
+            "soil_moisture_root_mean": 0.45,
+            "hujan_lag1": 10, "hujan_lag2": 5, "hujan_lag3": 2,
+            "hujan_lag4": 0, "hujan_lag5": 0, "hujan_lag6": 0, "hujan_lag7": 0
+        }
+    
+    # Get explanation
+    with st.spinner("Menghitung SHAP values..."):
+        explanation = shap_explainer.explain_prediction(model_pack, input_data)
+    
+    if explanation is None or "error" in explanation:
+        st.info("💡 SHAP belum tersedia. Menampilkan feature importance dari model.")
+        
+        # Fallback to model feature importance
+        model = model_pack.get('model')
+        feature_names = model_pack.get('feature_names', [])
+        
+        if hasattr(model, 'feature_importances_'):
+            importances = model.feature_importances_
+            
+            # Create chart
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                y=[f.replace("_", " ").title() for f in feature_names[:10]],
+                x=importances[:10],
+                orientation='h',
+                marker=dict(
+                    color=importances[:10],
+                    colorscale='RdYlGn_r'
+                )
+            ))
+            
+            fig.update_layout(
+                title="📊 Feature Importance (Model-Based)",
+                xaxis_title="Importance Score",
+                yaxis_title="Feature",
+                height=400,
+                template="plotly_dark",
+                yaxis=dict(autorange="reversed")
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        return
+    
+    # Get chart data
+    chart_data = shap_explainer.get_feature_importance_chart_data(explanation)
+    
+    if chart_data:
+        # Create SHAP waterfall-style bar chart
+        features = [d['feature'] for d in chart_data]
+        contributions = [d['contribution'] for d in chart_data]
+        colors = ['#dc2626' if c > 0 else '#16a34a' for c in contributions]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=features,
+            x=contributions,
+            orientation='h',
+            marker=dict(color=colors),
+            text=[f"{c:+.3f}" for c in contributions],
+            textposition='outside'
+        ))
+        
+        fig.update_layout(
+            title="🎯 Kontribusi Fitur terhadap Prediksi Risiko",
+            xaxis_title="Kontribusi SHAP (+ = Meningkatkan Risiko)",
+            yaxis_title="Fitur",
+            height=450,
+            template="plotly_dark",
+            yaxis=dict(autorange="reversed"),
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Summary cards
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 🔺 Top Faktor Peningkat Risiko")
+            for feat, val in explanation.get('top_positive', [])[:3]:
+                st.markdown(f"**{feat.replace('_', ' ').title()}**: +{val:.3f}")
+        
+        with col2:
+            st.markdown("### 🔻 Top Faktor Penurun Risiko")
+            for feat, val in explanation.get('top_negative', [])[:3]:
+                st.markdown(f"**{feat.replace('_', ' ').title()}**: {val:.3f}")
+        
+        # Explanation
+        st.info("""
+        **Cara Membaca Grafik:**
+        - **Merah (+)**: Fitur ini meningkatkan probabilitas banjir
+        - **Hijau (-)**: Fitur ini menurunkan probabilitas banjir
+        - Semakin panjang bar, semakin besar pengaruhnya
+        """)

@@ -17,3 +17,10 @@ pysheds
 geopandas
 shapely
 scipy
+osmnx
+folium
+streamlit-folium
+duckdb
+mlflow
+pyproj
+shap
