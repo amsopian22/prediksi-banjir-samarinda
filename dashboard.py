@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 import pandas as pd
 import datetime
@@ -13,6 +14,7 @@ from feature_extraction import SpatialFeatureExtractor
 import config
 import ui_components
 import sentinel_utils
+import monitoring_map  # NEW: 5 Lokasi Monitoring Map
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -263,10 +265,16 @@ if spatial_extractor:
                 # Filter Data based on Selected Date
                 filtered_df = hourly_risk_df[hourly_risk_df['time'].dt.date == selected_date]
                 
+                
                 ui_components.render_decision_support(geojson_data, filtered_df if not filtered_df.empty else hourly_risk_df, lat, lon, selected_date)
                 
                 if filtered_df.empty:
                      st.warning(f"Data spesifik untuk {config.format_id_date(selected_date)} tidak ditemukan. Menampilkan data umum.")
+
+                # 4. Monitoring Locations Map (NEW)
+                st.divider()
+                st.subheader("🗺️ Peta 5 Lokasi Monitoring")
+                monitoring_map.render_monitoring_locations_map(model_pack, current_time=pd.Timestamp.now())
 
                 # 5. 7-Day Forecast
                 st.divider()
