@@ -1,7 +1,9 @@
 
+
 import joblib
 import os
 import pandas as pd
+import numpy as np
 import streamlit as st
 import config
 import logging
@@ -204,11 +206,13 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
             "tide_rain_sync": 1 if (pasut_max > 2.5 and rain_today > 50) else 0,
             "consecutive_rain_days": input_data.get("consecutive_rain_days", 0),
             "hour_risk_factor": input_data.get("hour_risk_factor", 1.0),
-            "drain_capacity_index": input_data.get("drain_capacity_index", feature_dict.get("rain_cumsum_7d", 0) / 200.0),
             "upstream_rain_6h": input_data.get("upstream_rain_6h", 0),
             "wind_speed_max": input_data.get("wind_speed_max", 0),
             "rainfall_acceleration": input_data.get("rainfall_acceleration", 0),
         }
+        
+        # Calculate drain_capacity_index after rain_cumsum_7d is available
+        feature_dict["drain_capacity_index"] = input_data.get("drain_capacity_index", feature_dict["rain_cumsum_7d"] / 200.0)
         
         df_input = pd.DataFrame([feature_dict])
         
@@ -394,23 +398,79 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
         X['soil_moisture_root_mean'] = hourly_df.get('soil_moisture_root', 0.4)
         X['pasut_msl_max'] = hourly_df['est']
         
-        # Lag Features (t-1 to t-7)
+        # Lag Features (t-1 to t-7) - renamed to rain_lag for V6
         for lag_num in range(1, 8):
-            col_name = f'hujan_lag{lag_num}'
-            X[col_name] = hourly_df.get(col_name, 0)
+            col_name_old = f'hujan_lag{lag_num}'
+            col_name_new = f'rain_lag{lag_num}'
+            X[col_name_new] = hourly_df.get(col_name_old, hourly_df.get(col_name_new, 0))
         
-        # Calculate API 7 Day
+        # Calculate derived features
         k = config.API_DECAY_FACTOR
         X['api_7day'] = (
             X['rain_sum_imputed'] +
-            k * X['hujan_lag1'] +
-            (k**2) * X['hujan_lag2'] +
-            (k**3) * X['hujan_lag3'] +
-            (k**4) * X['hujan_lag4'] +
-            (k**5) * X['hujan_lag5'] +
-            (k**6) * X['hujan_lag6'] +
-            (k**7) * X['hujan_lag7']
+            k * X['rain_lag1'] +
+            (k**2) * X['rain_lag2'] +
+            (k**3) * X['rain_lag3'] +
+            (k**4) * X['rain_lag4'] +
+            (k**5) * X['rain_lag5'] +
+            (k**6) * X['rain_lag6'] +
+            (k**7) * X['rain_lag7']
         )
+        
+        # Add V4 derived features
+        X['soil_saturation_index'] = (X['soil_moisture_surface_mean'] + X['soil_moisture_root_mean']) / 2
+        X['rain_cumsum_3d'] = X['rain_sum_imputed'].rolling(window=72, min_periods=1).sum()  # 3 days = 72 hours
+        X['rain_cumsum_7d'] = X['rain_sum_imputed'].rolling(window=168, min_periods=1).sum()  # 7 days = 168 hours
+        X['tide_rain_interaction'] = X['pasut_msl_max'] * X['rain_sum_imputed']
+        X['is_high_tide'] = (X['pasut_msl_max'] > 2.5).astype(int)
+        X['is_heavy_rain'] = (X['rain_sum_imputed'] > 50).astype(int)
+        
+        # Time features
+        X['month_sin'] = np.sin(2 * np.pi * hourly_df['time'].dt.month / 12)
+        X['month_cos'] = np.cos(2 * np.pi * hourly_df['time'].dt.month / 12)
+        X['is_rainy_season'] = hourly_df['time'].dt.month.isin([11, 12, 1, 2, 3]).astype(int)
+        X['is_weekend'] = (hourly_df['time'].dt.dayofweek >= 5).astype(int)
+        
+        # Flood history features (rolling counts)
+        X['prev_flood_30d'] = 0  # Would need historical labels, default to 0
+        X['prev_meluap_30d'] = 0  # Would need historical labels, default to 0
+        
+        # === NEW V6 FEATURES ===
+        # 1. rain_intensity_3h
+        X['rain_intensity_3h'] = X['rain_rolling_3h']
+        
+        # 2. rain_burst_count - count hours with >10mm in last 24h
+        X['rain_burst_count'] = (hourly_df['precipitation'] > 10).rolling(window=24, min_periods=1).sum()
+        
+        # 3. soil_saturation_trend - diff over 72h (3 days)
+        X['soil_saturation_trend'] = X['soil_saturation_index'].diff(periods=72).fillna(0)
+        
+        # 4. tide_rain_sync
+        X['tide_rain_sync'] = ((X['pasut_msl_max'] > 2.5) & (X['rain_sum_imputed'] > 50)).astype(int)
+        
+        # 5. consecutive_rain_days - approximate from hourly
+        has_rain = (hourly_df['precipitation'] > 0).astype(int)
+        rain_streaks = has_rain.groupby((has_rain != has_rain.shift()).cumsum()).cumsum()
+        X['consecutive_rain_days'] = (rain_streaks / 24.0).fillna(0)  # Convert hours to days
+        
+        # 6. hour_risk_factor - higher at night (22:00-06:00)
+        hour = hourly_df['time'].dt.hour
+        is_night = ((hour >= 22) | (hour <= 6)).astype(int)
+        X['hour_risk_factor'] = 1.0 + (is_night * 0.2)
+        
+        # 7. drain_capacity_index
+        X['drain_capacity_index'] = (X['rain_cumsum_7d'] / 200.0).clip(0, 2.0)
+        
+        # 8. upstream_rain_6h - would need upstream data, default to 0
+        X['upstream_rain_6h'] = hourly_df.get('upstream_precipitation', 0)
+        
+        # 9. wind_speed_max - max in last 24h
+        X['wind_speed_max'] = hourly_df.get('wind_speed', 0)
+        if 'wind_speed' in hourly_df.columns:
+            X['wind_speed_max'] = hourly_df['wind_speed'].rolling(window=24, min_periods=1).max()
+        
+        # 10. rainfall_acceleration
+        X['rainfall_acceleration'] = X['rain_intensity_max'].diff().fillna(0)
         
         # Only select features that the model expects
         available_cols = [f for f in features_needed if f in X.columns]
