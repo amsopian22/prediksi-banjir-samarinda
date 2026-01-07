@@ -43,10 +43,17 @@ def load_resources():
     tide_predictor = data_ingestion.TidePredictor()
     weather_fetcher = data_ingestion.WeatherFetcher()
     
+    # Spatial extractor is optional (DEM might not be available in cloud)
+    spatial_extractor = None
     try:
-        spatial_extractor = SpatialFeatureExtractor()
+        # Check if DEM file exists before attempting to load
+        import os
+        if os.path.exists(config.DEM_PATH):
+            spatial_extractor = SpatialFeatureExtractor()
+        else:
+            logger.warning(f"DEM file not found: {config.DEM_PATH}. Spatial features disabled.")
     except Exception as e:
-        logger.error(f"Spatial Init Error: {e}")
+        logger.error(f"Spatial Init Error: {e}. Continuing without spatial features.")
         spatial_extractor = None
         
     return model_pack, tide_predictor, weather_fetcher, spatial_extractor
