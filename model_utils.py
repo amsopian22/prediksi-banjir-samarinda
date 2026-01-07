@@ -44,6 +44,33 @@ def load_model() -> Dict[str, Any]:
     except Exception as e:
         error_msg = f"Error loading model: {e}"
         logger.error(error_msg)
+        
+        # --- SELF-HEALING: AUTO-RETRAIN ---
+        # If model is incompatible (e.g. diff python version, sklearn version specific errors)
+        # We attempt to retrain it on the spot.
+        if "AttributeError" in str(e) or "ModuleNotFoundError" in str(e) or "unpickle" in str(e):
+             st.warning("⚠️ Model tidak kompatibel dengan server (Versi Python/Sklearn berbeda). Memulai pelatihan ulang otomatis...")
+             try:
+                 import sys
+                 # Ensure scripts dir is importable
+                 scripts_dir = os.path.join(config.BASE_DIR, 'scripts')
+                 if scripts_dir not in sys.path:
+                     sys.path.append(scripts_dir)
+                 
+                 import train_regression_model
+                 logger.info("Executing Auto-Retrain...")
+                 train_regression_model.train_model()
+                 
+                 # Retry load
+                 st.toast("✅ Model berhasil dilatih ulang! Memuat...", icon="🔄")
+                 joblib.load(model_path) # Check if works now
+                 # Recursive call (safe because we only retry once practically as new model should allow load)
+                 return load_model()
+                 
+             except Exception as e_retrain:
+                 st.error(f"Gagal melatih ulang model: {e_retrain}")
+                 return None
+        
         st.error(error_msg)
         return None
 
