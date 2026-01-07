@@ -45,9 +45,17 @@ def load_model() -> Dict[str, Any]:
         error_msg = f"Error loading model: {e}"
         logger.error(error_msg)
         
-        # --- SELF-HEALING: AUTO-RETRAIN ---
-        # If model is incompatible (e.g. diff python version, sklearn version specific errors)
-        # We attempt to retrain it on the spot.
+        # --- SELF-HEALING: AUTO-RETRAIN (DISABLED ON CLOUD) ---
+        # Auto-retrain causes timeout on Streamlit Cloud (takes 20+ seconds)
+        # Check if running on Streamlit Cloud
+        is_cloud = os.getenv("STREAMLIT_SHARING_MODE") or "/mount/src" in config.BASE_DIR
+        
+        if is_cloud:
+            logger.warning("Running on Streamlit Cloud - skipping auto-retrain to prevent timeout")
+            st.warning("⚠️ Model tidak kompatibel dengan server. Silakan hubungi admin untuk melatih ulang model.")
+            return None
+        
+        # Only auto-retrain locally
         if "AttributeError" in str(e) or "ModuleNotFoundError" in str(e) or "unpickle" in str(e):
              st.warning("⚠️ Model tidak kompatibel dengan server (Versi Python/Sklearn berbeda). Memulai pelatihan ulang otomatis...")
              try:
