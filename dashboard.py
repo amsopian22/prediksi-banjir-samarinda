@@ -21,6 +21,7 @@ import config
 import ui_components
 import sentinel_utils
 import monitoring_map  # NEW: 5 Lokasi Monitoring Map
+import telegram_bot  # NEW: Telegram Alert Integration
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -258,6 +259,26 @@ if spatial_extractor:
                 # 1. Hero Section (Command Status)
                 ui_components.render_command_center_hero(assessment, validation=val_result)
                 ui_components.render_status_reference()
+                
+                # --- TELEGRAM ALERT (Auto-send on SIAGA/AWAS) ---
+                alert_key = f"telegram_alert_{selected_loc_name}_{curr_status}"
+                if curr_status in ["SIAGA", "AWAS"]:
+                    # Check if alert already sent in this session (cooldown)
+                    if alert_key not in st.session_state:
+                        try:
+                            sent = telegram_bot.send_flood_alert(
+                                location=selected_loc_name,
+                                status=curr_status,
+                                depth_cm=curr_depth,
+                                reasoning=assessment.get('reasoning', ''),
+                                recommendation=assessment.get('recommendation', ''),
+                                min_level="SIAGA"
+                            )
+                            if sent:
+                                st.session_state[alert_key] = True
+                                st.toast(f"📱 Alert Telegram terkirim: {curr_status}", icon="✅")
+                        except Exception as e:
+                            logger.warning(f"Telegram alert failed: {e}")
                 
                 # 2. Operational Fronts (The 3-Fronts Grid)
                 # Prepare Dicts

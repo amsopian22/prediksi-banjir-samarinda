@@ -103,3 +103,9 @@ UPSTREAM_LOCATIONS = {
 
 # Rata-rata waktu tempuh air dari hulu ke kota (Jam)
 UPSTREAM_LAG_HOURS = 6
+
+# --- TELEGRAM ALERTS ---
+# Set via environment variables for security
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "").split(",")
+TELEGRAM_ALERT_THRESHOLD = "SIAGA"  # Minimum level to trigger alert (WASPADA, SIAGA, AWAS)

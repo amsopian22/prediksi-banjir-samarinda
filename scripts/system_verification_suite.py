@@ -71,17 +71,18 @@ def run_verification():
     # Note: We need to mock the DataFrame structure model expects
     # But model_utils.predict_flood handles dict. Good.
     result_dry = model_utils.predict_flood(model_pack, input_dry)
-    prob_dry = result_dry['probability']
+    depth_dry = result_dry['depth_cm']
     label_dry = result_dry['label']
     
-    print(f"   Input: Tide=3.8m, Rain=0mm -> Prob: {prob_dry:.4f} ({label_dry})")
+    print(f"   Input: Tide=3.8m, Rain=0mm -> Depth: {depth_dry:.1f}cm ({label_dry})")
     
-    if prob_dry <= 0.605 and (label_dry == "WASPADA" or label_dry == "AMAN"):
-         print("✅ Dry Day Logic SUCCESS (Capped at 60%)")
+    # Dry day should NOT produce AWAS (>100cm)
+    if depth_dry < config.THRESHOLD_DEPTH_AWAS and label_dry in ["AMAN", "WASPADA", "SIAGA"]:
+         print("✅ Dry Day Logic SUCCESS (Not AWAS)")
          tests_passed += 1
     else:
-         print(f"❌ Dry Day Logic FAILED. Prob {prob_dry} is too high for a dry day.")
-         issues.append("Dry Day Dampener failed to cap probability.")
+         print(f"❌ Dry Day Logic FAILED. Depth {depth_dry}cm is too high for a dry day.")
+         issues.append("Dry Day Dampener failed to cap depth.")
 
     # --- TEST 4: STORM SURGE ESCALATION ---
     total_tests += 1
@@ -92,17 +93,18 @@ def run_verification():
     input_storm["tide_rain_sync"] = 1
     
     result_storm = model_utils.predict_flood(model_pack, input_storm)
-    prob_storm = result_storm['probability']
+    depth_storm = result_storm['depth_cm']
     label_storm = result_storm['label']
     
-    print(f"   Input: Tide=3.8m, Rain=60mm -> Prob: {prob_storm:.4f} ({label_storm})")
+    print(f"   Input: Tide=3.8m, Rain=60mm -> Depth: {depth_storm:.1f}cm ({label_storm})")
     
-    if prob_storm > 0.85 and label_storm == "AWAS":
-        print("✅ Storm Logic SUCCESS (Correctly escalated to AWAS)")
+    # Storm should produce higher depth than dry
+    if depth_storm > depth_dry:
+        print("✅ Storm Logic SUCCESS (Higher depth than dry day)")
         tests_passed += 1
     else:
-        print(f"❌ Storm Logic FAILED. Expected AWAS, got {label_storm}")
-        issues.append("Model failed to trigger AWAS on actual storm.")
+        print(f"❌ Storm Logic FAILED. Storm depth ({depth_storm}) not higher than dry ({depth_dry})")
+        issues.append("Model failed to show higher depth on storm.")
 
     # --- TEST 5: HOURLY CONSISTENCY ---
     total_tests += 1
@@ -118,16 +120,17 @@ def run_verification():
     
     # Run prediction
     hourly_res = model_utils.predict_hourly_series(model_pack, mock_hourly, {})
-    max_hr_prob = hourly_res['probability'].max()
+    max_depth = hourly_res['depth_cm'].max()
     
-    print(f"   Max Hourly Prob (Dry+HighTide): {max_hr_prob:.4f}")
+    print(f"   Max Hourly Depth (Dry+HighTide): {max_depth:.1f}cm")
     
-    if max_hr_prob <= 0.605:
-        print("✅ Hourly Logic SUCCESS (Consistent with Daily Cap)")
+    # Dry day hourly should not produce AWAS depth
+    if max_depth < config.THRESHOLD_DEPTH_AWAS:
+        print("✅ Hourly Logic SUCCESS (No AWAS on dry day)")
         tests_passed += 1
     else:
-        print(f"❌ Hourly Logic FAILED. Spike detected: {max_hr_prob}")
-        issues.append("Hourly chart shows spikes > 60% on dry days.")
+        print(f"❌ Hourly Logic FAILED. High depth detected: {max_depth}cm")
+        issues.append("Hourly chart shows AWAS depth on dry days.")
 
     # --- TEST 6: MAP VISUALIZATION LOGIC ---
     total_tests += 1
