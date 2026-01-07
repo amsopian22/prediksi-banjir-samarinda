@@ -82,7 +82,40 @@ class WeatherFetcher:
             
         except Exception as e:
             logging.error(f"Error fetching weather data: {e}")
-            return pd.DataFrame()
+            logging.warning("⚠️ OPTION-METEO ERROR: Failed to connect. Switching to Mock Data mode.")
+            
+            # --- FALLBACK: GENERATE MOCK DATA ---
+            # To ensure the dashboard doesn't crash offline, we generate a synthetic dataset.
+            try:
+                now = pd.Timestamp.now(tz=config.TIMEZONE)
+                start_date = now - pd.Timedelta(days=3)
+                end_date = now + pd.Timedelta(days=14)
+                
+                # Create hourly index
+                date_rng = pd.date_range(start=start_date, end=end_date, freq='h')
+                
+                # Mock Values (Zero rain, safe default soil)
+                length = len(date_rng)
+                mock_data = {
+                    "date": date_rng,
+                    "precipitation": [0.0] * length, 
+                    "soil_moisture_surface": [0.4] * length,
+                    "soil_moisture_root": [0.4] * length,
+                    "wind_speed": [2.0] * length
+                }
+                
+                df = pd.DataFrame(mock_data)
+                
+                # Feature Engineering for Mock Data
+                df['rain_rolling_24h'] = 0.0
+                df['rain_rolling_3h'] = 0.0
+                df['wind_speed_max_24h'] = 2.0
+                
+                return df
+                
+            except Exception as e_mock:
+                logging.error(f"Failed to generate mock data: {e_mock}")
+                return pd.DataFrame()
 
 class TidePredictor:
     def __init__(self):

@@ -5,6 +5,12 @@ import pandas as pd
 import datetime
 import os
 import logging
+import warnings
+
+# Suppress SHAP warnings globally
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', message='.*TreeExplainer.*')
+warnings.filterwarnings('ignore', message='.*feature_perturbation.*')
 
 # New Modules
 import data_ingestion
@@ -19,6 +25,8 @@ import monitoring_map  # NEW: 5 Lokasi Monitoring Map
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# Reduce SHAP logging noise
+logging.getLogger('shap').setLevel(logging.ERROR)
 
 # --- KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -145,7 +153,8 @@ if spatial_extractor:
             
 
             if not current_row.empty:
-                curr_prob = current_row['probability'].values[0]
+                curr_prob = current_row['depth_cm'].values[0] # Renamed variable but kept for logic flow
+                curr_depth = current_row['depth_cm'].values[0]
                 curr_status = current_row['status'].values[0]
                 curr_rain_24h = current_row['rain_rolling_24h'].values[0]
                 curr_tide = current_row['est'].values[0]
@@ -202,6 +211,17 @@ if spatial_extractor:
                 # Get Full Assessment
                 assessment = model_utils.predict_flood(model_pack, input_data_pack)
                 
+                if assessment is None:
+                    assessment = {
+                        "level": "ERROR",
+                        "label": "ERROR",
+                        "depth_cm": 0,
+                        "color": "gray",
+                        "recommendation": "Gagal memperoleh hasil prediksi. Silakan coba lagi.",
+                        "reasoning": "Internal Model Error",
+                        "main_factor": "Data Error"
+                    }
+
                 # Defensive Check for Deployment Cache Issues
                 if isinstance(assessment, tuple):
                     st.toast("⚠️ Warning: Legacy model Output detected. cache might be stale.", icon="⚠️")
@@ -216,14 +236,14 @@ if spatial_extractor:
                         "main_factor": "Unknown"
                     }
                 
-                curr_prob = assessment.get('probability', 0)
+                curr_prob = assessment.get('depth_cm', 0)
                 curr_status = assessment.get('label', 'Unknown')
 
                 # --- HYBRID VALIDATION (Satellite + Radar) ---
                 val_result = None
                 
                 # Check Hybrid Validation if Risk is High
-                if curr_status in ["WASPADA", "BAHAYA", "SIAGA"]:
+                if curr_status in ["WASPADA", "SIAGA", "AWAS"]:
                      hybrid_status = check_hybrid_validation(lat, lon)
                      if hybrid_status:
                         val_result = {
@@ -271,10 +291,10 @@ if spatial_extractor:
                 if filtered_df.empty:
                      st.warning(f"Data spesifik untuk {config.format_id_date(selected_date)} tidak ditemukan. Menampilkan data umum.")
 
-                # 4. Monitoring Locations Map (NEW)
-                st.divider()
-                st.subheader("🗺️ Peta 5 Lokasi Monitoring")
-                monitoring_map.render_monitoring_locations_map(model_pack, current_time=pd.Timestamp.now())
+                # 4. Monitoring Locations Map (DISABLED - Causes continuous refresh)
+                # st.divider()
+                # st.subheader("🗺️ Peta 5 Lokasi Monitoring")
+                # monitoring_map.render_monitoring_locations_map(model_pack, current_time=pd.Timestamp.now())
 
                 # 5. 7-Day Forecast
                 st.divider()
@@ -306,25 +326,69 @@ if spatial_extractor:
                     lags = lags_lookup.get(date_val, {})
                     lag1 = lags.get('hujan_lag1', 0)
                     lag2 = lags.get('hujan_lag2', 0)
+                    lag3 = lags.get('hujan_lag3', 0)
+                    lag4 = lags.get('hujan_lag4', 0)
+                    lag5 = lags.get('hujan_lag5', 0)
+                    lag6 = lags.get('hujan_lag6', 0)
+                    lag7 = lags.get('hujan_lag7', 0)
                     
                     # Actual Soil Moisture
                     soil_mean = group['soil_moisture_surface'].mean() if 'soil_moisture_surface' in group else 0.5
+
+                    # Calculate temporal features
+                    import datetime as dt
+                    date_obj = pd.to_datetime(date_val)
+                    month = date_obj.month
+                    is_weekend = 1 if date_obj.dayofweek >= 5 else 0  # Saturday=5, Sunday=6
+                    is_rainy_season = 1 if month in [11, 12, 1, 2, 3, 4] else 0
+                    
+                    # Month cyclical encoding
+                    import math
+                    month_sin = math.sin(2 * math.pi * month / 12)
+                    month_cos = math.cos(2 * math.pi * month / 12)
 
                     d_input = {
                         "rain_sum_imputed": daily_rain,
                         "rain_intensity_max": group['precipitation'].max(),
                         "soil_moisture_surface_mean": soil_mean,
-                        "soil_moisture_root_mean": soil_mean, # Assumption for root
+                        "soil_moisture_root_mean": soil_mean,
                         "pasut_msl_max": daily_max_tide,
                         "hujan_lag1": lag1, 
-                        "hujan_lag2": lag2
+                        "hujan_lag2": lag2,
+                        "hujan_lag3": lag3,
+                        "hujan_lag4": lag4,
+                        "hujan_lag5": lag5,
+                        "hujan_lag6": lag6,
+                        "hujan_lag7": lag7,
+                        # Temporal features (CRITICAL!)
+                        "is_weekend": is_weekend,
+                        "is_rainy_season": is_rainy_season,
+                        "month_sin": month_sin,
+                        "month_cos": month_cos,
+                        # Additional derived features
+                        "rain_cumsum_3d": daily_rain + lag1 + lag2,
+                        "rain_cumsum_7d": daily_rain + lag1 + lag2 + lag3 + lag4 + lag5 + lag6,
+                        "upstream_rain_6h": upstream_rain_recent if 'upstream_rain_recent' in locals() else 0,
+                        "prev_flood_30d": 0,
+                        "prev_meluap_30d": 0,
+                        
+                        # V6 Complete Features to avoid default bias
+                        "drain_capacity_index": (daily_rain + lag1 + lag2 + lag3 + lag4 + lag5 + lag6) / 200.0,
+                        "tide_rain_sync": 1 if (daily_max_tide > 2.5 and daily_rain > 50) else 0,
+                        "rain_intensity_3h": daily_rain / 4.0 if daily_rain > 10 else 0, # Rough estimate
+                        "rainfall_acceleration": 0, # Assume stable for daily forecast
+                        "rain_burst_count": 0,
+                        "hour_risk_factor": 1.0,
                     }
                     
                     # Predict using new function
                     d_assess = model_utils.predict_flood(model_pack, d_input)
-                    d_status = d_assess['label']
-                    d_prob = d_assess['probability']
-                    d_color = d_assess['color']
+                    if d_assess is None:
+                        d_assess = {"label": "ERROR", "depth_cm": 0, "color": "gray"}
+
+                    d_status = d_assess.get('label', 'Unknown')
+                    d_depth = d_assess.get('depth_cm', 0)
+                    d_color = d_assess.get('color', 'gray')
                     
                     with current_col:
                         date_str = config.format_id_date(date_val)
@@ -337,18 +401,108 @@ if spatial_extractor:
                         elif d_color == "red": status_class = "error"
                         
                         if status_class == "success":
-                            st.success(f"{d_status}\n{d_prob*100:.0f}%")
+                            st.success(f"{d_status}\n{d_depth:.0f} cm")
                         elif status_class == "warning":
-                            st.warning(f"{d_status}\n{d_prob*100:.0f}%")
+                            st.warning(f"{d_status}\n{d_depth:.0f} cm")
                         else:
-                            st.error(f"{d_status}\n{d_prob*100:.0f}%")
+                            st.error(f"{d_status}\n{d_depth:.0f} cm")
                             
                         st.caption(f"🌧️ {daily_rain:.1f}mm\n🌊 {daily_max_tide:.1f}m")
+                        
+                        # DEBUG: Show key features
+                        rain_cumsum_7d = daily_rain + lag1 + lag2 + lag3 + lag4 + lag5 + lag6
+                        st.caption(f"🔍 Week: {'WEEKEND' if is_weekend else 'WEEKDAY'} | Cumsum7d: {rain_cumsum_7d:.1f}mm")
                     idx += 1
                 
                 # Explanation for constant low probability
                 if hourly_df['precipitation'].sum() == 0:
                      st.info("💡 **Catatan:** Probabilitas risiko rendah dan konstan dikarenakan prakiraan cuaca menunjukkan **tidak ada hujan** (0 mm) untuk periode ini. Risiko didominasi oleh faktor pasang surut rutin.")
+
+                # --- DEBUG SECTION (To diagnose strange 7-day predictions) ---
+                with st.expander("🕵️‍♂️ Debug Data Prediksi 7 Hari (Teknis)", expanded=False):
+                    st.caption("Tabel ini menampilkan nilai fitur yang digunakan untuk prediksi 7 hari ke depan.")
+                    
+                    # Re-generate debug data list
+                    debug_data_list = []
+                    idx_debug = 0
+                    for date_val, group in future_groups:
+                        if idx_debug >= 7: break
+                        
+                        daily_rain = group['precipitation'].sum()
+                        daily_max_tide = group['est'].max()
+                        lags = lags_lookup.get(date_val, {})
+                        
+                        import datetime as dt
+                        date_obj = pd.to_datetime(date_val)
+                        is_weekend = 1 if date_obj.dayofweek >= 5 else 0
+                        
+                        lag1 = lags.get('hujan_lag1', 0)
+                        lag2 = lags.get('hujan_lag2', 0)
+                        rain_cumsum_7d = daily_rain + lag1 + lag2 + lags.get('hujan_lag3',0) + lags.get('hujan_lag4',0) + lags.get('hujan_lag5',0) + lags.get('hujan_lag6',0)
+                        
+                        # Re-construct input for explanation
+                        d_input_debug = {
+                            "rain_sum_imputed": daily_rain,
+                            "rain_intensity_max": group['precipitation'].max(),
+                            "soil_moisture_surface_mean": 0.5, # Default
+                            "soil_moisture_root_mean": 0.5,
+                            "pasut_msl_max": daily_max_tide,
+                            "hujan_lag1": lag1, 
+                            "hujan_lag2": lag2,
+                            "hujan_lag3": lags.get('hujan_lag3', 0),
+                            "hujan_lag4": lags.get('hujan_lag4', 0),
+                            "hujan_lag5": lags.get('hujan_lag5', 0),
+                            "hujan_lag6": lags.get('hujan_lag6', 0),
+                            "hujan_lag7": lags.get('hujan_lag7', 0),
+                            "is_weekend": is_weekend,
+                            "is_rainy_season": 1,
+                            # Fix NameError: use math instead of np
+                            "month_sin": math.sin(2 * math.pi * date_obj.month / 12),
+                            "month_cos": math.cos(2 * math.pi * date_obj.month / 12),
+                            # V6 Features
+                            "rain_cumsum_3d": daily_rain + lag1 + lag2,
+                            "rain_cumsum_7d": rain_cumsum_7d,
+                            "drain_capacity_index": rain_cumsum_7d / 200.0,
+                            "tide_rain_sync": 1 if (daily_max_tide > 2.5 and daily_rain > 50) else 0,
+                            "rain_intensity_3h": daily_rain / 4.0 if daily_rain > 10 else 0,
+                            "rainfall_acceleration": 0,
+                            "rain_burst_count": 0,
+                            "hour_risk_factor": 1.0,
+                            "upstream_rain_6h": 0,
+                            "wind_speed_max": 0,
+                            "prev_flood_30d": 0,
+                            "prev_meluap_30d": 0,
+                            "tide_rain_interaction": daily_max_tide * daily_rain,
+                            "is_high_tide": 1 if daily_max_tide > 2.5 else 0,
+                            "is_heavy_rain": 1 if daily_rain > 50 else 0,
+                            "api_7day": 0 # Simplified
+                        }
+                        
+                        # Get Prediction & Explanation
+                        d_assess_debug = model_utils.predict_flood(model_pack, d_input_debug)
+                        if d_assess_debug is None:
+                             d_assess_debug = {"label": "ERROR", "depth_cm": 0, "contributions": {}}
+
+                        contributors = ""
+                        if "contributions" in d_assess_debug:
+                             # Top 3
+                             top3 = list(d_assess_debug["contributions"].items())[:3]
+                             contributors = ", ".join([f"{k}={v:.3f}" for k,v in top3])
+
+                        row = {
+                            "Tanggal": config.format_id_date(date_val),
+                            "Rain (mm)": float(f"{daily_rain:.2f}"),
+                            "Tide (m)": float(f"{daily_max_tide:.2f}"),
+                            "Cumsum7d": float(f"{rain_cumsum_7d:.2f}"),
+                            "Prediksi": f"{d_assess_debug['label']} ({d_assess_debug['depth_cm']:.1f} cm)",
+                            "Penyebab Utama (XAI)": contributors
+                        }
+                        debug_data_list.append(row)
+                        idx_debug += 1
+                        
+                    debug_df = pd.DataFrame(debug_data_list)
+                    st.dataframe(debug_df, use_container_width=True)
+                # -------------------------------------------------------------
 
                 # 6. Map Simulation (Moved to top)
                 # Code removed to prevent duplicate widget error
@@ -390,6 +544,9 @@ else: # Mode Simulasi
         
         assessment = model_utils.predict_flood(model_pack, sim_input)
         
+        if assessment is None:
+            assessment = {"level": "ERROR", "label": "ERROR", "depth_cm": 0, "contributions": {}, "reasoning": "Error"}
+
         # Display Result using new components
         ui_components.render_executive_summary(assessment)
         ui_components.render_risk_context(assessment)

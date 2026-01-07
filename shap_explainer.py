@@ -5,6 +5,11 @@ Provides explanations for individual predictions using SHAP values.
 import numpy as np
 import pandas as pd
 import logging
+import warnings
+
+# Suppress SHAP warnings about TreeExplainer and StackingClassifier
+warnings.filterwarnings('ignore', category=FutureWarning, module='shap')
+warnings.filterwarnings('ignore', message='.*TreeExplainer.*')
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +97,16 @@ def explain_prediction(model_pack, input_data: dict):
         
         # Create SHAP explainer with check_additivity=False to avoid strict checks
         try:
+            # Check if model is StackingClassifier (not supported by TreeExplainer)
+            from sklearn.ensemble import StackingClassifier, StackingRegressor
+            
+            is_stacking = isinstance(model, (StackingClassifier, StackingRegressor))
+            
+            if is_stacking:
+                # Skip TreeExplainer for stacking models - raise exception to trigger fallback
+                logger.info("StackingClassifier detected, skipping TreeExplainer (not supported)")
+                raise ValueError("StackingClassifier not supported by TreeExplainer")
+            
             # Use feature_perturbation='interventional' for better compatibility
             explainer = shap.TreeExplainer(model, feature_perturbation='interventional')
             shap_values = explainer.shap_values(X, check_additivity=False)
@@ -148,7 +163,9 @@ def explain_prediction(model_pack, input_data: dict):
             }
             
         except Exception as e:
-            logger.warning(f"TreeExplainer failed: {e}")
+            # Silently skip TreeExplainer for StackingClassifier (expected behavior)
+            # Use debug level instead of warning since this is expected for StackingClassifier
+            logger.debug(f"TreeExplainer not compatible: {e}")
             # Return error to trigger fallback to model feature importance
             return {"error": str(e)}
             

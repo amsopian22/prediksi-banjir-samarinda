@@ -11,15 +11,21 @@ REF_DIR = os.path.join(BASE_DIR, "data-refactored")
 DEM_DIR = os.path.join(BASE_DIR, "data-demhas")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-MODEL_PATH = os.path.join(MODELS_DIR, "model_banjir_v6_enhanced.pkl")
+MODEL_PATH = os.path.join(MODELS_DIR, "model_banjir_v7_regression.pkl")
 TIDE_MODEL_PATH = os.path.join(MODELS_DIR, "tide_model_urs.pkl")
 DEM_PATH = os.path.join(DEM_DIR, "DEMNAS_1915-13_v1.0.tif")
 RISK_MAP_PATH = os.path.join(REF_DIR, "samarinda_risk_map_calculated.geojson")
 
 # --- THRESHOLDS ---
-THRESHOLD_FLOOD_PROBABILITY = 0.40 # Optimized manually (Prev: 0.80). Lowered to capture heavy rain events.
-THRESHOLD_TIDE_LOW_RISK = 2.5 # meters (Mulai Meluap / Genangan Ringan)
-THRESHOLD_TIDE_PHYSICAL_DANGER = 2.9 # meters (Bahaya / Genangan Dalam > 40cm)
+# --- THRESHOLDS (DEPTH in CM) ---
+THRESHOLD_DEPTH_WASPADA = 20.0 # cm
+THRESHOLD_DEPTH_SIAGA = 50.0 # cm
+THRESHOLD_DEPTH_AWAS = 100.0 # cm (~Pinggang Dewasa)
+
+# Legacy Thresholds (will be deprecated)
+THRESHOLD_FLOOD_PROBABILITY = 0.65 
+THRESHOLD_TIDE_LOW_RISK = 3.0 # meters (Approx 20cm above ground)
+THRESHOLD_TIDE_PHYSICAL_DANGER = 3.2 # meters (Deep > 40cm)
 THRESHOLD_ELEVATION_LOW = 5.0 # meters
 THRESHOLD_ELEVATION_SAFE = 10.0 # meters
 

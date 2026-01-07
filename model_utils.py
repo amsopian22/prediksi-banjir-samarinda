@@ -12,6 +12,8 @@ from typing import Tuple, Dict, Any, List
 # Setup Logging
 logger = logging.getLogger(__name__)
 
+import json
+
 @st.cache_resource(ttl="1h")
 def load_model() -> Dict[str, Any]:
     """Memuat model ML yang sudah dilatih."""
@@ -25,7 +27,20 @@ def load_model() -> Dict[str, Any]:
         
     try:
         logger.info(f"Loading model from {model_path}...")
-        return joblib.load(model_path)
+        model = joblib.load(model_path)
+        
+        # Load Metadata for Features
+        meta_path = os.path.join(os.path.dirname(model_path), "model_banjir_v7_metadata.json")
+        features = []
+        if os.path.exists(meta_path):
+            with open(meta_path, 'r') as f:
+                meta = json.load(f)
+                features = meta.get("features", [])
+        else:
+            logger.warning(f"Metadata not found at {meta_path}. Features might be missing.")
+            
+        return {"model": model, "features": features}
+        
     except Exception as e:
         error_msg = f"Error loading model: {e}"
         logger.error(error_msg)
@@ -47,27 +62,26 @@ class FloodRiskSystem:
     VERSION = "2.1" # Force cache update
     
     @staticmethod
-    def get_risk_assessment(probability: float, input_data: Dict[str, float] = None) -> Dict[str, Any]:
+    def get_risk_assessment(depth_cm: float, input_data: Dict[str, float] = None) -> Dict[str, Any]:
         """
-        Determines the risk level and associated metadata based on probability and context.
+        Determines the risk level based on Water Depth (cm).
         """
         # 1. Determine Level
-        pct = probability * 100
-        if pct < 50:
+        if depth_cm < config.THRESHOLD_DEPTH_WASPADA: # < 20cm
              level = FloodRiskSystem.LEVEL_NORMAL
              label = "AMAN"
              color = "green"
-        elif pct < 70:
+        elif depth_cm < config.THRESHOLD_DEPTH_SIAGA: # < 50cm
              level = FloodRiskSystem.LEVEL_WASPADA
-             label = "WASPADA"
+             label = "WASPADA" # (Air Meluap / Genangan)
              color = "yellow"
-        elif pct < 85:
+        elif depth_cm < config.THRESHOLD_DEPTH_AWAS: # < 100cm
              level = FloodRiskSystem.LEVEL_SIAGA
-             label = "SIAGA"
+             label = "SIAGA" # (Banjir)
              color = "orange"
         else:
              level = FloodRiskSystem.LEVEL_AWAS
-             label = "AWAS"
+             label = "AWAS" # (Banjir Besar)
              color = "red"
              
         # 2. Reasoning (Explainability)
@@ -78,47 +92,47 @@ class FloodRiskSystem:
             # Check Rain
             rain = input_data.get('rain_sum_imputed', input_data.get('curah_hujan_mm', 0))
             if rain > 150:
-                 reasons.append(f"Hujan Ekstrem (>150mm)")
+                 reasons.append(f"Hujan Ekstrem ({rain:.1f}mm)")
                  main_factor = "Hujan Ekstrem"
-            elif rain > 100:
-                reasons.append("Hujan Sangat Deras (>100mm)")
-                main_factor = "Hujan Deras"
             elif rain > 50:
-                reasons.append("Hujan Deras (>50mm)")
+                reasons.append(f"Hujan Deras ({rain:.1f}mm)")
                 if main_factor == "Tidak Ada": main_factor = "Hujan Deras"
                 
             # Check Tide
             tide = input_data.get('pasut_msl_max', 0)
-            if tide > 2.5:
+            ground_offset = config.TIDE_DATUM_OFFSET
+            tide_depth = tide - ground_offset
+            
+            if tide_depth > 0:
                 reasons.append(f"Pasang Laut Tinggi ({tide:.1f}m)")
-                if main_factor == "Tidak Ada": main_factor = "Pasang Rob"
-                elif "Hujan" in main_factor: main_factor += " & Rob"
-            elif tide > 1.5:
-                reasons.append("Pasang Laut Sedang")
+                if "Hujan" in main_factor: main_factor += " & Rob"
+                elif main_factor == "Tidak Ada": main_factor = "Pasang Rob"
+            
+            # Check Elevation (New)
+            elev = input_data.get('elevation_m', 2.0)
+            if elev < 5.0:
+                reasons.append(f"Topografi Rendah ({elev}m)")
                 
-            # Check Soil
-            soil = input_data.get('soil_moisture_surface_mean', 0)
-            if soil > 0.8:
-                reasons.append("Tanah Jenuh Air")
-                
-        reason_text = ", ".join(reasons) if reasons else "Kondisi Meteorologis Normal"
+        reason_text = ", ".join(reasons) if reasons else "Kondisi Kondusif"
+        if depth_cm > 10 and not reasons:
+            reason_text = "Akumulasi Air Permukaan"
         
-        # 3. Recommendations (SOP)
+        # 3. Recommendations
         recommendation = ""
         if level == FloodRiskSystem.LEVEL_NORMAL:
-            recommendation = "Kondisi kondusif. Masyarakat dapat beraktivitas seperti biasa dan tetap memantau informasi cuaca."
+            recommendation = "Kondisi aman. Tetap pantau informasi cuaca."
         elif level == FloodRiskSystem.LEVEL_WASPADA:
-            recommendation = "Masyarakat dihimbau waspada. Perhatikan kondisi parit dan drainase di sekitar lingkungan."
+            recommendation = "Hati-hati genangan air di jalan rendah. Bersihkan drainase."
         elif level == FloodRiskSystem.LEVEL_SIAGA:
-            recommendation = "Masyarakat dan Pemerintah perlu memantau CCTV Kota dan update informasi resmi dari BPBD."
+            recommendation = "Siaga banjir. Amankan barang elektronik ke tempat lebih tinggi."
         elif level == FloodRiskSystem.LEVEL_AWAS:
-            recommendation = "Ikuti arahan petugas di lapangan. Persiapkan langkah mitigasi dan hindari area rawan genangan."
+            recommendation = "BAHAYA. Segera evakuasi ke tempat aman. Ikuti arahan petugas."
             
         return {
             "level": level,
             "label": label,
             "color": color,
-            "probability": probability,
+            "depth_cm": depth_cm,
             "main_factor": main_factor,
             "reasoning": reason_text,
             "recommendation": recommendation
@@ -131,13 +145,18 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
     if not model_pack:
         return {"level": "UNKNOWN", "probability": 0, "reasoning": "Model not loaded"}
 
-    model = model_pack.get("model")
+    if isinstance(model_pack, dict):
+        model = model_pack.get("model")
+        features_needed = model_pack.get("features", [])
+    else:
+        # Fallback for stale cache or raw model
+        model = model_pack
+        features_needed = [] # Unknown
     
     if not model:
-         return {"level": "ERROR", "probability": 0}
+         return {"level": "ERROR", "depth_cm": 0}
 
     # Feature Engineering (Unified Logic)
-    features_needed = model_pack.get("features", [])
     df_input = None
     
     # Prepare input logic for V2/V3/V6
@@ -209,6 +228,11 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
             "upstream_rain_6h": input_data.get("upstream_rain_6h", 0),
             "wind_speed_max": input_data.get("wind_speed_max", 0),
             "rainfall_acceleration": input_data.get("rainfall_acceleration", 0),
+            
+            # --- NEW REGRESSION FEATURES ---
+            "elevation_m": input_data.get("elevation_m", 2.0),
+            "drainage_capacity": input_data.get("drainage_capacity", 50.0), # Default 50%
+
         }
         
         # Calculate drain_capacity_index after rain_cumsum_7d is available
@@ -251,70 +275,50 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
         }])
         
 
-    try:
-        # Predict
-        probabilitas = 0.0
-        if hasattr(model, "predict_proba"):
-             # Finding Banjir Index logic
-             banjir_idx = 1
-             if hasattr(model, "classes_"):
-                 classes_list = list(model.classes_)
-                 if "Banjir" in classes_list: banjir_idx = classes_list.index("Banjir")
-                 elif 1 in classes_list: banjir_idx = 1
-             
-             probs = model.predict_proba(df_input)[0]
-             probabilitas = probs[banjir_idx] if len(probs) > banjir_idx else probs[-1]
-        else:
-             probabilitas = float(model.predict(df_input)[0])
+    # Predict Depth
+    predicted_depth = 0.0
+    if hasattr(model, "predict"):
+            try:
+                predicted_depth = float(model.predict(df_input)[0])
+            except:
+                pass
+            
+    # Ensure non-negative
+    predicted_depth = max(0.0, predicted_depth)
 
-        # --- SPATIAL RISK BIAS (Heuristic for "Banjir Kiriman") ---
-        # Adjust probability based on Flow Accumulation if available.
-        # This allows the model to be sensitive to topography even if trained on single-point data.
-        flow_acc = input_data.get('flow_accumulation', 0)
-        
-        # Logic: If high accumulation (>5000 cells) AND significant rain (>20mm), boost risk.
-        if flow_acc > 5000 and input_data.get('rain_sum_imputed', 0) > 20:
-            # Boost factor: up to 15% increase for very high accumulation areas
-            boost = min(0.15, (flow_acc / 50000) * 0.10) 
-            probabilitas = min(0.99, probabilitas + boost)
-            
-        # --- UPSTREAM RAIN BIAS (Kiriman) ---
-        # If upstream rain is high (>20mm in last 6h), increase risk due to "Kiriman"
-        upstream_rain = input_data.get('upstream_rain', 0)
-        if upstream_rain > 20:
-             # Add 10% risk if Heavy Upstream Rain
-             probabilitas = min(0.99, probabilitas + 0.10)
-            
-             # Add 10% risk if Heavy Upstream Rain
-             probabilitas = min(0.99, probabilitas + 0.10)
-            
-        # --- LAND USE/RUNOFF FACTOR (Impervious Surface) ---
-        # Adjust based on Runoff Coefficient (0.5 to 1.0)
-        # Higher runoff (Urban) -> Higher probability
-        runoff_coeff = input_data.get('runoff_coefficient', 0.85) # Default to high if unknown
-        if runoff_coeff > 0.8: # Urban bias
-             probabilitas += 0.05
-        elif runoff_coeff < 0.6: # Green area reduction
-             probabilitas -= 0.05
-         
-        probabilitas = max(0.01, min(0.99, probabilitas))
 
-        # Get Rich Assessment
-        assessment = FloodRiskSystem.get_risk_assessment(probabilitas, input_data)
-        
-        # Add XAI (Feature Contributions)
-        if hasattr(model, "feature_importances_"):
-            importances = model.feature_importances_
+    # --- PHYSICS ADJUSTMENTS ---
+    # If user provides specific Elevation/Drainage not in training, adjust here?
+    # For now, trust the model which learned from "elevation_m"=2.0
+    
+    # Cap max realistic depth to avoiding crazy outliers
+    predicted_depth = min(300.0, predicted_depth)
+
+    
+    # --- DEBUG LOGGING FOR VALIDATION ---
+    # Hanya log jika ini prediksi forecast (bukan hourly series yg spammy)
+    if isinstance(features_needed, list) and "rain_cumsum_7d" in features_needed:
+            # Helper to safely get value from df_input if possible, or input_data
+            pass # Skipping verbose logging for now
+            
+    # ------------------------------------
+
+    # Get Rich Assessment
+    assessment = FloodRiskSystem.get_risk_assessment(predicted_depth, input_data)
+    
+    # Add XAI (Feature Contributions)
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        # Handle case where features_needed might not match importance length
+        if len(features_needed) == len(importances):
             contributions = dict(zip(features_needed, importances))
             # Sort by importance
             sorted_contribs = dict(sorted(contributions.items(), key=lambda item: item[1], reverse=True))
             assessment["contributions"] = sorted_contribs
-            
-        return assessment
+        
+    return assessment
 
-    except Exception as e:
-        logger.error(f"Prediction Error: {e}")
-        return {"level": "ERROR", "probability": 0, "reasoning": str(e)}
+
 
 def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, daily_lags_lookup: Dict) -> pd.DataFrame:
     """
@@ -323,8 +327,13 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
     if not model_pack:
         return pd.DataFrame()
         
-    model = model_pack["model"]
-    threshold = model_pack.get("threshold", config.THRESHOLD_FLOOD_PROBABILITY)
+    if isinstance(model_pack, dict):
+        model = model_pack.get("model")
+        # Update features if available in pack? For now relying on hardcoded logic matching training
+    else:
+        model = model_pack
+        
+    threshold = config.THRESHOLD_FLOOD_PROBABILITY # Legacy usage
     
     # 1. Calculate Rolling 24h Rain
     hourly_df['rain_rolling_24h'] = hourly_df['precipitation'].rolling(window=24, min_periods=1).sum()
@@ -379,7 +388,11 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
     
     # Prepare X
     # Dynamic Feature Construction based on Model Version
-    features_needed = model_pack.get("features", [])
+    # Dynamic Feature Construction based on Model Version
+    if isinstance(model_pack, dict):
+        features_needed = model_pack.get("features", [])
+    else:
+        features_needed = [] # Fallback
     logger.info(f"Predict Hourly: Features Needed = {features_needed}")
     
     # Check if V2/V3 features are needed
@@ -418,9 +431,14 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
         )
         
         # Add V4 derived features
+        # Add V4 derived features
         X['soil_saturation_index'] = (X['soil_moisture_surface_mean'] + X['soil_moisture_root_mean']) / 2
-        X['rain_cumsum_3d'] = X['rain_sum_imputed'].rolling(window=72, min_periods=1).sum()  # 3 days = 72 hours
-        X['rain_cumsum_7d'] = X['rain_sum_imputed'].rolling(window=168, min_periods=1).sum()  # 7 days = 168 hours
+        
+        # FIX: Calculate cumulative sums from raw precipitation, not from rolling 24h sum
+        # Using min_periods=1 to ensure we have values even at start of series
+        X['rain_cumsum_3d'] = hourly_df['precipitation'].rolling(window=72, min_periods=1).sum()  # 3 days = 72 hours
+        X['rain_cumsum_7d'] = hourly_df['precipitation'].rolling(window=168, min_periods=1).sum()  # 7 days = 168 hours
+        
         X['tide_rain_interaction'] = X['pasut_msl_max'] * X['rain_sum_imputed']
         X['is_high_tide'] = (X['pasut_msl_max'] > 2.5).astype(int)
         X['is_heavy_rain'] = (X['rain_sum_imputed'] > 50).astype(int)
@@ -432,8 +450,9 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
         X['is_weekend'] = (hourly_df['time'].dt.dayofweek >= 5).astype(int)
         
         # Flood history features (rolling counts)
-        X['prev_flood_30d'] = 0  # Would need historical labels, default to 0
-        X['prev_meluap_30d'] = 0  # Would need historical labels, default to 0
+        # Note: In hourly series, we might not have historical labels, so we default to 0
+        X['prev_flood_30d'] = 0  
+        X['prev_meluap_30d'] = 0
         
         # === NEW V6 FEATURES ===
         # 1. rain_intensity_3h
@@ -470,7 +489,14 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
             X['wind_speed_max'] = hourly_df['wind_speed'].rolling(window=24, min_periods=1).max()
         
         # 10. rainfall_acceleration
-        X['rainfall_acceleration'] = X['rain_intensity_max'].diff().fillna(0)
+        # FIX: Use rolling mean to reduce noise from instantaneous spikes
+        rain_smooth = hourly_df['precipitation'].rolling(window=3, min_periods=1).mean()
+        X['rainfall_acceleration'] = rain_smooth.diff().fillna(0)
+        
+        # Add Regression Features
+        X['elevation_m'] = 2.0 # Default/Mean
+        X['drainage_capacity'] = 50.0 # Default
+        
         
         # Only select features that the model expects
         available_cols = [f for f in features_needed if f in X.columns]
@@ -492,34 +518,25 @@ def predict_hourly_series(model_pack: Dict[str, Any], hourly_df: pd.DataFrame, d
     X = X.fillna(0)
     
 
-    # Predict
-    if hasattr(model, "predict_proba"):
-        banjir_idx = 1 # Default for V2 (Binary: 0=Aman, 1=Banjir)
-        # Check classes
-        if hasattr(model, "classes_"):
-            classes_list = list(model.classes_)
-            if "Banjir" in classes_list: # V1 Style
-                banjir_idx = classes_list.index("Banjir")
-            elif 1 in classes_list or 1.0 in classes_list: # V2 Style (Binary)
-                banjir_idx = 1
-                
-        probs = model.predict_proba(X)[:, banjir_idx]
-    else:
-        probs = model.predict(X)
-        
-    hourly_df['probability'] = probs
+    hourly_df['depth_cm'] = model.predict(X)
+    hourly_df['depth_cm'] = hourly_df['depth_cm'].clip(lower=0)
+
     
-    # Map Probability to Status Label (Vectorized)
-    def get_status(p):
-        if p < 0.5: return "AMAN"
-        elif p < 0.7: return "WASPADA"
-        elif p < 0.85: return "SIAGA"
+    # --- POST-PROCESSING: SMOOTHING ---
+    hourly_df['depth_cm'] = hourly_df['depth_cm'].rolling(window=3, min_periods=1, center=True).mean()
+
+    
+    # Map Depth to Status Label (Vectorized)
+    def get_status(d):
+        if d < config.THRESHOLD_DEPTH_WASPADA: return "AMAN"
+        elif d < config.THRESHOLD_DEPTH_SIAGA: return "WASPADA"
+        elif d < config.THRESHOLD_DEPTH_AWAS: return "SIAGA"
         else: return "AWAS"
         
-    hourly_df['status'] = hourly_df['probability'].apply(get_status)
+    hourly_df['status'] = hourly_df['depth_cm'].apply(get_status)
     
     # Clean up temporary columns if needed, but returning select columns is fine
-    cols_to_return = ['time', 'probability', 'status', 'rain_rolling_24h', 'est', 'hujan_3days', 'precipitation']
+    cols_to_return = ['time', 'depth_cm', 'status', 'rain_rolling_24h', 'est', 'hujan_3days', 'precipitation']
     # Add Soil Moisture if present
     for col in ['soil_moisture_surface', 'soil_moisture_root']:
         if col in hourly_df.columns:

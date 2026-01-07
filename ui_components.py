@@ -4,6 +4,12 @@ import pandas as pd
 import plotly.graph_objects as go
 import config
 from datetime import datetime
+import warnings
+
+# Suppress SHAP warnings about TreeExplainer compatibility
+warnings.filterwarnings('ignore', category=FutureWarning, module='shap')
+warnings.filterwarnings('ignore', message='.*TreeExplainer.*')
+warnings.filterwarnings('ignore', message='.*feature_perturbation.*')
 
 def load_custom_css():
     """
@@ -563,7 +569,7 @@ def render_hourly_chart(hourly_risk_df: pd.DataFrame):
     fig = make_subplots(rows=2, cols=1, 
                         shared_xaxes=True, 
                         vertical_spacing=0.1,
-                        subplot_titles=("Curah Hujan & Pasang Surut", "Probabilitas Risiko Banjir (%)"),
+                        subplot_titles=("Curah Hujan & Pasang Surut", "Prediksi Tinggi Genangan (cm)"),
                         specs=[[{"secondary_y": True}], [{"secondary_y": False}]])
     
     # --- ROW 1: Rain (Bar) & Tide (Line) ---
@@ -589,18 +595,19 @@ def render_hourly_chart(hourly_risk_df: pd.DataFrame):
                   annotation_text=f"Batas Bahaya ({config.THRESHOLD_TIDE_PHYSICAL_DANGER}m)", 
                   annotation_position="top right", row=1, col=1, secondary_y=True)
 
-    # --- ROW 2: Flood Probability (Area) ---
+    # --- ROW 2: Flood Depth (Area) ---
     fig.add_trace(go.Scatter(
         x=hourly_risk_df['time'],
-        y=hourly_risk_df['probability'] * 100,
-        name='Risiko Banjir (%)',
+        y=hourly_risk_df['depth_cm'],
+        name='Tinggi Genangan (cm)',
         fill='tozeroy',
         mode='lines',
         line=dict(color='#ff5252')
     ), row=2, col=1)
     
     # Logic Threshold
-    fig.add_hline(y=50, line_dash="dot", line_color="orange", annotation_text="Waspada (50%)", row=2, col=1)
+    fig.add_hline(y=config.THRESHOLD_DEPTH_WASPADA, line_dash="dot", line_color="yellow", annotation_text="Waspada (20cm)", row=2, col=1)
+    fig.add_hline(y=config.THRESHOLD_DEPTH_SIAGA, line_dash="dash", line_color="orange", annotation_text="Siaga (50cm)", row=2, col=1)
 
     # --- LAYOUT ---
     fig.update_layout(
@@ -614,7 +621,7 @@ def render_hourly_chart(hourly_risk_df: pd.DataFrame):
     # Y-Axis Labels
     fig.update_yaxes(title_text="Hujan (mm)", row=1, col=1, secondary_y=False)
     fig.update_yaxes(title_text="Pasang (m)", row=1, col=1, secondary_y=True, range=[0, 4.2])
-    fig.update_yaxes(title_text="Risiko (%)", row=2, col=1, range=[0, 100])
+    fig.update_yaxes(title_text="Genangan (cm)", row=2, col=1, range=[0, 150])
     
     st.plotly_chart(fig, use_container_width=True)
 
@@ -714,12 +721,19 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         # Layout for controls
         col_ctrl1, col_ctrl2 = st.columns([3, 1])
         with col_ctrl1:
-            selected_time_str = st.select_slider(
+            # Use regular slider with index to avoid 'values' property conflict
+            slider_idx = st.slider(
                 "⏳ **Pilih Waktu Simulasi**:", 
-                options=time_options, 
-                value=time_options[default_idx], 
+                min_value=0,
+                max_value=len(time_options) - 1,
+                value=default_idx,
+                format=f"",  # Hide default number display
                 key='map_simulation_slider'
             )
+            selected_time_str = time_options[slider_idx]
+            
+            # Display selected time below slider
+            st.caption(f"**Waktu Terpilih:** {selected_time_str}")
         
         # Get tide level for selected time
         selected_idx = future_tide_df.index[future_tide_df['time'].dt.strftime('%d %b %H:%M') == selected_time_str][0]
@@ -765,15 +779,25 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         # 0.3 = WASPADA (KUNING) - Risiko Rendah
         # 0.0 = AMAN (TRANSPARAN)
         
+        # Get Rain for Context
+        sim_rain = selected_row.get('rain_rolling_24h', 0)
+        
         def get_intensity(row):
             elev = row['mean_elev']
             adj_tide = sim_tide_level - config.TIDE_DATUM_OFFSET
             depth = adj_tide - elev
             
+            # Base Logic
             if elev < adj_tide:
-                return 1.0, "BAHAYA (TENGGELAM)", f"{depth*100:.0f} cm"
+                # OVERFLOW CONDITION
+                if sim_rain < 5.0:
+                    # Dry Day Dampener: High Tide without Rain usually just fills channels
+                    return 0.6, "WASPADA (PASANG)", f"Genangan {depth*100:.0f} cm"
+                else:
+                    # Wet Day: True Flood Risk
+                    return 1.0, "BAHAYA (TENGGELAM)", f"Banjir {depth*100:.0f} cm"
             elif elev < (adj_tide + 0.5):
-                return 0.7, "SIAGA (RISIKO TINGGI)", "Hampir Meluap"
+                return 0.7 if sim_rain > 20 else 0.4, "SIAGA (RISIKO TINGGI)", "Hampir Meluap"
             elif elev < (adj_tide + 1.0):
                 return 0.3, "WASPADA (RISIKO)", "Belum Tergenang"
             else:
@@ -804,6 +828,9 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 show_boundaries = st.checkbox("📍 Batas Kelurahan", value=False, key="layer_boundaries")
                 show_radar = st.checkbox("🌧️ Radar Hujan (RainViewer)", value=True, key="layer_radar")
                 show_safe_markers = st.checkbox("✅ Marker Area Aman", value=True, key="layer_safe")
+                
+                if show_radar:
+                    st.caption("ℹ️ Radar Hujan memerlukan koneksi internet stabil.")
 
         # Initialize Map Layers
         layers = []
@@ -887,19 +914,22 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         # --- LAYER 3: Radar Layer (RainViewer) ---
         radar_info = fetch_radar_timestamp()
         r_ts = None
-        if show_radar and radar_info:
-            r_host, r_ts = radar_info
-            layers.append({
-                "below": 'traces',
-                "sourcetype": "raster",
-                "sourceattribution": "RainViewer Radar",
-                "source": [
-                    f"{r_host}/v2/radar/{r_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
-                ],
-                "opacity": 0.6,
-                "minzoom": 0,
-                "maxzoom": 10
-            })
+        if show_radar:
+            if radar_info:
+                r_host, r_ts = radar_info
+                layers.append({
+                    "below": 'traces',
+                    "sourcetype": "raster",
+                    "sourceattribution": "RainViewer Radar",
+                    "source": [
+                        f"{r_host}/v2/radar/{r_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+                    ],
+                    "opacity": 0.6,
+                    "minzoom": 0,
+                    "maxzoom": 10
+                })
+            else:
+                 st.toast("⚠️ Gagal memuat data Radar Hujan. Cek koneksi internet.", icon="📡")
 
         fig_map.update_layout(
             mapbox_style=mapbox_style, 
