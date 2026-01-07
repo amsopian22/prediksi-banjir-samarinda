@@ -1,10 +1,10 @@
 streamlit
 pandas
-scikit-learn==1.5.1
+scikit-learn>=1.5.0
 utide
 matplotlib
 requests
-numpy
+numpy<2.0
 Pillow
 openpyxl
 plotly
@@ -13,7 +13,7 @@ openmeteo-requests
 requests-cache
 retry-requests
 rasterio
-pysheds
+# pysheds removed - not compatible with Python 3.13, spatial features will use fallback
 geopandas
 shapely
 scipy
@@ -26,3 +26,4 @@ pyproj
 shap
 pytest>=7.0.0
 pytest-mock>=3.10.0
+joblib

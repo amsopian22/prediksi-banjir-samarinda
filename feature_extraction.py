@@ -1,8 +1,16 @@
 
 import rasterio
 import numpy as np
-import pysheds
-from pysheds.grid import Grid
+
+# Pysheds is optional (not compatible with Python 3.13 on Streamlit Cloud)
+try:
+    import pysheds
+    from pysheds.grid import Grid
+    PYSHEDS_AVAILABLE = True
+except ImportError:
+    PYSHEDS_AVAILABLE = False
+    Grid = None
+
 import pandas as pd
 from shapely.geometry import Point, LineString, MultiLineString
 import geopandas as gpd
@@ -50,19 +58,23 @@ class SpatialFeatureExtractor:
                 if self.crs is None:
                     logger.warning("DEM has no CRS defined. Assuming EPSG:4326 (WGS84).")
             
-            # Pysheds Grid - with CRS fix
-            try:
-                self.grid = Grid.from_raster(self.dem_path)
-                self.dem_grid = self.grid.read_raster(self.dem_path)
-                
-                # If CRS is missing, set default to EPSG:4326
-                if self.grid.crs is None or str(self.grid.crs) == '':
-                    from pyproj import CRS
-                    self.grid.crs = CRS.from_epsg(4326)
-                    logger.info("Set Pysheds CRS to EPSG:4326")
+            # Pysheds Grid - with CRS fix (optional)
+            if PYSHEDS_AVAILABLE:
+                try:
+                    self.grid = Grid.from_raster(self.dem_path)
+                    self.dem_grid = self.grid.read_raster(self.dem_path)
                     
-            except Exception as e:
-                logger.warning(f"Pysheds load failed: {e}. Continuing with basic features.")
+                    # If CRS is missing, set default to EPSG:4326
+                    if self.grid.crs is None or str(self.grid.crs) == '':
+                        from pyproj import CRS
+                        self.grid.crs = CRS.from_epsg(4326)
+                        logger.info("Set Pysheds CRS to EPSG:4326")
+                        
+                except Exception as e:
+                    logger.warning(f"Pysheds load failed: {e}. Continuing with basic features.")
+                    self.grid = None
+            else:
+                logger.info("Pysheds not available. Using basic spatial features only.")
                 self.grid = None
 
             # --- Slope Calculation (Numpy) ---
