@@ -391,15 +391,128 @@ def render_operational_fronts(weather: dict, upstream: dict, ocean: dict, spatia
 """, unsafe_allow_html=True)
 
 
+def render_bmkg_kelurahan_data():
+    """
+    Renders BMKG weather data per kelurahan from DuckDB.
+    Shows forecast for selected kelurahan with weather description cards.
+    """
+    import config
+    from database_manager import get_db
+    from data_ingestion import BMKGFetcher
+    
+    st.subheader("🌦️ Prakiraan Cuaca BMKG per Kelurahan")
+    st.caption("Data dari API BMKG (api.bmkg.go.id) - Diperbarui setiap 3 jam")
+    
+    # Kelurahan selector grouped by kecamatan
+    kelurahan_list = list(config.SAMARINDA_KELURAHAN.keys())
+    
+    # Group by kecamatan for better UX
+    kecamatan_groups = {}
+    for kel, info in config.SAMARINDA_KELURAHAN.items():
+        kec = info["kecamatan"]
+        if kec not in kecamatan_groups:
+            kecamatan_groups[kec] = []
+        kecamatan_groups[kec].append(kel)
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        # Kecamatan filter
+        kecamatan_options = ["Semua Kecamatan"] + sorted(kecamatan_groups.keys())
+        selected_kec = st.selectbox("📍 Filter Kecamatan:", kecamatan_options, key="bmkg_kec_select")
+        
+    with col2:
+        # Kelurahan selector based on kecamatan
+        if selected_kec == "Semua Kecamatan":
+            kel_options = sorted(kelurahan_list)
+        else:
+            kel_options = sorted(kecamatan_groups.get(selected_kec, []))
+        
+        selected_kel = st.selectbox("🏘️ Pilih Kelurahan:", kel_options, key="bmkg_kel_select")
+    
+    if selected_kel:
+        kel_info = config.SAMARINDA_KELURAHAN.get(selected_kel)
+        adm4_code = kel_info["code"]
+        kecamatan = kel_info["kecamatan"]
+        
+        st.markdown(f"**Kode ADM4:** `{adm4_code}` | **Kecamatan:** {kecamatan}")
+        
+        # Try to get cached data from DB first
+        db = get_db()
+        cached_df = db.get_bmkg_weather(kelurahan_code=adm4_code, hours=24)
+        
+        if cached_df.empty:
+            # Fetch live data
+            st.info("⏳ Mengambil data BMKG...")
+            fetcher = BMKGFetcher()
+            try:
+                df = fetcher.fetch_weather_data(adm4_code=adm4_code)
+                if not df.empty:
+                    db.log_bmkg_weather(df, adm4_code, selected_kel, kecamatan)
+                    cached_df = df
+            except Exception as e:
+                st.warning(f"Gagal mengambil data: {e}")
+        
+        if not cached_df.empty:
+            st.markdown("---")
+            
+            # Normalize column names: database uses 'timestamp', live fetch uses 'date'
+            if 'timestamp' in cached_df.columns and 'date' not in cached_df.columns:
+                cached_df = cached_df.rename(columns={'timestamp': 'date'})
+            
+            # Current/nearest forecast
+            now_df = cached_df.head(4)
+            
+            cols = st.columns(4)
+            for i, (_, row) in enumerate(now_df.iterrows()):
+                with cols[i]:
+                    time_col = row.get('date') if 'date' in row.index else row.get('timestamp')
+                    time_str = time_col.strftime('%H:%M') if hasattr(time_col, 'strftime') else str(time_col)[:5]
+                    weather = row.get('weather_desc', 'N/A')
+                    precip = row.get('precipitation', 0)
+                    temp = row.get('temperature', 'N/A')
+                    humidity = row.get('humidity', 'N/A')
+                    
+                    icon = "☀️"
+                    if "Hujan" in str(weather):
+                        icon = "🌧️" if "Lebat" in str(weather) else "🌦️"
+                    elif "Berawan" in str(weather):
+                        icon = "⛅"
+                    elif "Mendung" in str(weather):
+                        icon = "☁️"
+                    
+                    st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 15px; text-align: center; border: 1px solid rgba(255,255,255,0.1);">
+                        <div style="font-size: 2rem;">{icon}</div>
+                        <div style="font-weight: 600; color: #fff;">{time_str}</div>
+                        <div style="font-size: 0.8rem; color: #a0a0a0;">{weather}</div>
+                        <div style="margin-top: 8px;"><span style="color: #5DADEC;">💧 {precip:.1f}mm</span></div>
+                        <div style="font-size: 0.75rem; color: #808495;">🌡️ {temp}°C | 💨 {humidity}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with st.expander("📋 Lihat Prakiraan Lengkap", expanded=False):
+                display_df = cached_df[['date', 'weather_desc', 'precipitation', 'temperature', 'humidity', 'wind_speed']].copy()
+                display_df.columns = ['Waktu', 'Cuaca', 'Curah Hujan (mm)', 'Suhu (°C)', 'Kelembaban (%)', 'Angin (km/h)']
+                st.dataframe(display_df, use_container_width=True)
+            
+            st.caption(f"🕐 Data terakhir: {cached_df['date'].max()}")
+        else:
+            st.warning("⚠️ Belum ada data BMKG untuk kelurahan ini.")
+            if st.button("🔄 Fetch Data BMKG", key="bmkg_fetch_btn"):
+                st.rerun()
+
+
 def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lon: float, date_val=None):
     """
     Tabbed Interface for Decision Support: Map (Target), Chart (Timing), Forecast (Future).
     """
     st.markdown("### 🎯 PENDUKUNG KEPUTUSAN OPERASIONAL")
     
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🗺️ PETA OPERASI (TARGET AREA)", 
         "📉 GRAFIK TREN WAKTU", 
+        "🌦️ DATA BMKG (59 KELURAHAN)",
         "📡 MONITOR HULU (EWS)",
         "🧠 EXPLAINABILITY (SHAP)"
     ])
@@ -412,12 +525,15 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
         render_hourly_chart(risk_df)
         
     with tab3:
+        render_bmkg_kelurahan_data()
+    
+    with tab4:
         st.info("Fitur Monitor Grafik Hulu Khusus (Placeholder untuk Integrasi AWS Bedrock/Camera)")
         # Simple stats for now
         st.write("Data Curah Hujan Hulu (6 Jam Terakhir):")
         # Logic to be connected in dashboard.py if needed, for now placeholders
     
-    with tab4:
+    with tab5:
         render_shap_explanation(risk_df)
         
 # ---------------- LEGACY FUNCTIONS (KEPT FOR COMPATIBILITY UNTIL SWAP) ----------------
