@@ -435,102 +435,13 @@ if spatial_extractor:
                         else:
                             st.error(f"{d_status}\n{d_depth:.0f} cm")
                             
-                        st.caption(f"🌧️ {daily_rain:.1f}mm\n🌊 {daily_max_tide:.1f}m")
-                        
-                        # DEBUG: Show key features
-                        rain_cumsum_7d = daily_rain + lag1 + lag2 + lag3 + lag4 + lag5 + lag6
-                        st.caption(f"🔍 Week: {'WEEKEND' if is_weekend else 'WEEKDAY'} | Cumsum7d: {rain_cumsum_7d:.1f}mm")
+                        st.caption(f"🌧️ {daily_rain:.1f}mm | 🌊 {daily_max_tide:.1f}m")
                     idx += 1
                 
                 # Explanation for constant low probability
                 if hourly_df['precipitation'].sum() == 0:
                      st.info("💡 **Catatan:** Probabilitas risiko rendah dan konstan dikarenakan prakiraan cuaca menunjukkan **tidak ada hujan** (0 mm) untuk periode ini. Risiko didominasi oleh faktor pasang surut rutin.")
 
-                # --- DEBUG SECTION (To diagnose strange 7-day predictions) ---
-                with st.expander("🕵️‍♂️ Debug Data Prediksi 7 Hari (Teknis)", expanded=False):
-                    st.caption("Tabel ini menampilkan nilai fitur yang digunakan untuk prediksi 7 hari ke depan.")
-                    
-                    # Re-generate debug data list
-                    debug_data_list = []
-                    idx_debug = 0
-                    for date_val, group in future_groups:
-                        if idx_debug >= 7: break
-                        
-                        daily_rain = group['precipitation'].sum()
-                        daily_max_tide = group['est'].max()
-                        lags = lags_lookup.get(date_val, {})
-                        
-                        import datetime as dt
-                        date_obj = pd.to_datetime(date_val)
-                        is_weekend = 1 if date_obj.dayofweek >= 5 else 0
-                        
-                        lag1 = lags.get('hujan_lag1', 0)
-                        lag2 = lags.get('hujan_lag2', 0)
-                        rain_cumsum_7d = daily_rain + lag1 + lag2 + lags.get('hujan_lag3',0) + lags.get('hujan_lag4',0) + lags.get('hujan_lag5',0) + lags.get('hujan_lag6',0)
-                        
-                        # Re-construct input for explanation
-                        d_input_debug = {
-                            "rain_sum_imputed": daily_rain,
-                            "rain_intensity_max": group['precipitation'].max(),
-                            "soil_moisture_surface_mean": 0.5, # Default
-                            "soil_moisture_root_mean": 0.5,
-                            "pasut_msl_max": daily_max_tide,
-                            "hujan_lag1": lag1, 
-                            "hujan_lag2": lag2,
-                            "hujan_lag3": lags.get('hujan_lag3', 0),
-                            "hujan_lag4": lags.get('hujan_lag4', 0),
-                            "hujan_lag5": lags.get('hujan_lag5', 0),
-                            "hujan_lag6": lags.get('hujan_lag6', 0),
-                            "hujan_lag7": lags.get('hujan_lag7', 0),
-                            "is_weekend": is_weekend,
-                            "is_rainy_season": 1,
-                            # Fix NameError: use math instead of np
-                            "month_sin": math.sin(2 * math.pi * date_obj.month / 12),
-                            "month_cos": math.cos(2 * math.pi * date_obj.month / 12),
-                            # V6 Features
-                            "rain_cumsum_3d": daily_rain + lag1 + lag2,
-                            "rain_cumsum_7d": rain_cumsum_7d,
-                            "drain_capacity_index": rain_cumsum_7d / 200.0,
-                            "tide_rain_sync": 1 if (daily_max_tide > 2.5 and daily_rain > 50) else 0,
-                            "rain_intensity_3h": daily_rain / 4.0 if daily_rain > 10 else 0,
-                            "rainfall_acceleration": 0,
-                            "rain_burst_count": 0,
-                            "hour_risk_factor": 1.0,
-                            "upstream_rain_6h": 0,
-                            "wind_speed_max": 0,
-                            "prev_flood_30d": 0,
-                            "prev_meluap_30d": 0,
-                            "tide_rain_interaction": daily_max_tide * daily_rain,
-                            "is_high_tide": 1 if daily_max_tide > 2.5 else 0,
-                            "is_heavy_rain": 1 if daily_rain > 50 else 0,
-                            "api_7day": 0 # Simplified
-                        }
-                        
-                        # Get Prediction & Explanation
-                        d_assess_debug = model_utils.predict_flood(model_pack, d_input_debug)
-                        if d_assess_debug is None:
-                             d_assess_debug = {"label": "ERROR", "depth_cm": 0, "contributions": {}}
-
-                        contributors = ""
-                        if "contributions" in d_assess_debug:
-                             # Top 3
-                             top3 = list(d_assess_debug["contributions"].items())[:3]
-                             contributors = ", ".join([f"{k}={v:.3f}" for k,v in top3])
-
-                        row = {
-                            "Tanggal": config.format_id_date(date_val),
-                            "Rain (mm)": float(f"{daily_rain:.2f}"),
-                            "Tide (m)": float(f"{daily_max_tide:.2f}"),
-                            "Cumsum7d": float(f"{rain_cumsum_7d:.2f}"),
-                            "Prediksi": f"{d_assess_debug['label']} ({d_assess_debug['depth_cm']:.1f} cm)",
-                            "Penyebab Utama (XAI)": contributors
-                        }
-                        debug_data_list.append(row)
-                        idx_debug += 1
-                        
-                    debug_df = pd.DataFrame(debug_data_list)
-                    st.dataframe(debug_df, use_container_width=True)
-                # -------------------------------------------------------------
 
                 # 6. Map Simulation (Moved to top)
                 # Code removed to prevent duplicate widget error

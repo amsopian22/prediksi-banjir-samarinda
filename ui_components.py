@@ -397,34 +397,27 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
     """
     st.markdown("### 🎯 PENDUKUNG KEPUTUSAN OPERASIONAL")
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "🗺️ PETA OPERASI (TARGET AREA)", 
-        "🔥 HEATMAP RISIKO (FOLIUM)",
         "📉 GRAFIK TREN WAKTU", 
         "📡 MONITOR HULU (EWS)",
         "🧠 EXPLAINABILITY (SHAP)"
     ])
     
     with tab1:
-        # Reuse existing map logic but simpler wrapper
+        # Primary map with RainViewer integration
         render_map_simulation(geojson, risk_df, lat, lon, date_val)
-    
-    with tab2:
-        # New Folium Heatmap
-        import model_utils
-        model_pack = model_utils.load_model()
-        render_folium_heatmap(model_pack, risk_df, geojson)
         
-    with tab3:
+    with tab2:
         render_hourly_chart(risk_df)
         
-    with tab4:
+    with tab3:
         st.info("Fitur Monitor Grafik Hulu Khusus (Placeholder untuk Integrasi AWS Bedrock/Camera)")
         # Simple stats for now
         st.write("Data Curah Hujan Hulu (6 Jam Terakhir):")
         # Logic to be connected in dashboard.py if needed, for now placeholders
     
-    with tab5:
+    with tab4:
         render_shap_explanation(risk_df)
         
 # ---------------- LEGACY FUNCTIONS (KEPT FOR COMPATIBILITY UNTIL SWAP) ----------------

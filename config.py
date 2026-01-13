@@ -33,10 +33,6 @@ THRESHOLD_ELEVATION_SAFE = 10.0 # meters
 # Faktor peluruhan air tanah. 0.85 - 0.90 untuk tanah lempung/gambut Samarinda.
 API_DECAY_FACTOR = 0.85
 
-# SOIL SATURATION (API)
-# Faktor peluruhan air tanah. 0.85 - 0.90 untuk tanah lempung/gambut Samarinda.
-API_DECAY_FACTOR = 0.85
-
 def format_id_date(date_obj):
     """Format datetime object to Indonesian string (e.g., 'Senin, 08 Des')."""
     days = {
