@@ -105,3 +105,101 @@ UPSTREAM_LAG_HOURS = 6
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "").split(",")
 TELEGRAM_ALERT_THRESHOLD = "SIAGA"  # Minimum level to trigger alert (WASPADA, SIAGA, AWAS)
+
+# --- BMKG API ---
+BMKG_API_URL = "https://api.bmkg.go.id/publik/prakiraan-cuaca"
+
+# Complete list of 59 Kelurahan in Samarinda with ADM4 codes
+# Format: Province.City.District.Village (64=Kaltim, 72=Samarinda)
+SAMARINDA_KELURAHAN = {
+    # Kecamatan Palaran (64.72.01)
+    "Handil Bakti": {"code": "64.72.01.1001", "kecamatan": "Palaran"},
+    "Rawa Makmur": {"code": "64.72.01.1002", "kecamatan": "Palaran"},
+    "Bukuan": {"code": "64.72.01.1003", "kecamatan": "Palaran"},
+    "Simpang Pasir": {"code": "64.72.01.1004", "kecamatan": "Palaran"},
+    "Bantuas": {"code": "64.72.01.1005", "kecamatan": "Palaran"},
+    
+    # Kecamatan Samarinda Seberang (64.72.02)
+    "Sungai Keledang": {"code": "64.72.02.1001", "kecamatan": "Samarinda Seberang"},
+    "Baqa": {"code": "64.72.02.1002", "kecamatan": "Samarinda Seberang"},
+    "Mesjid": {"code": "64.72.02.1003", "kecamatan": "Samarinda Seberang"},
+    "Mangkupalas": {"code": "64.72.02.1009", "kecamatan": "Samarinda Seberang"},
+    "Tenun": {"code": "64.72.02.1010", "kecamatan": "Samarinda Seberang"},
+    "Gunung Panjang": {"code": "64.72.02.1011", "kecamatan": "Samarinda Seberang"},
+    
+    # Kecamatan Samarinda Ulu (64.72.03)
+    "Teluk Lerong Ilir": {"code": "64.72.03.1001", "kecamatan": "Samarinda Ulu"},
+    "Jawa": {"code": "64.72.03.1002", "kecamatan": "Samarinda Ulu"},
+    "Air Putih": {"code": "64.72.03.1004", "kecamatan": "Samarinda Ulu"},
+    "Sidodadi": {"code": "64.72.03.1005", "kecamatan": "Samarinda Ulu"},
+    "Air Hitam": {"code": "64.72.03.1006", "kecamatan": "Samarinda Ulu"},
+    "Dadi Mulya": {"code": "64.72.03.1007", "kecamatan": "Samarinda Ulu"},
+    "Gunung Kelua": {"code": "64.72.03.1008", "kecamatan": "Samarinda Ulu"},
+    "Bukit Pinang": {"code": "64.72.03.1009", "kecamatan": "Samarinda Ulu"},
+    
+    # Kecamatan Samarinda Ilir (64.72.04)
+    "Pelita": {"code": "64.72.04.1001", "kecamatan": "Samarinda Ilir"},
+    "Selili": {"code": "64.72.04.1002", "kecamatan": "Samarinda Ilir"},
+    "Sidodamai": {"code": "64.72.04.1003", "kecamatan": "Samarinda Ilir"},
+    "Sidomulyo": {"code": "64.72.04.1004", "kecamatan": "Samarinda Ilir"},
+    "Sungai Dama": {"code": "64.72.04.1005", "kecamatan": "Samarinda Ilir"},
+    
+    # Kecamatan Samarinda Utara (64.72.05)
+    "Lempake": {"code": "64.72.05.1001", "kecamatan": "Samarinda Utara"},
+    "Tanah Merah": {"code": "64.72.05.1002", "kecamatan": "Samarinda Utara"},
+    "Sungai Siring": {"code": "64.72.05.1003", "kecamatan": "Samarinda Utara"},
+    "Budaya Pampang": {"code": "64.72.05.1004", "kecamatan": "Samarinda Utara"},
+    "Sempaja Selatan": {"code": "64.72.05.1005", "kecamatan": "Samarinda Utara"},
+    "Sempaja Utara": {"code": "64.72.05.1006", "kecamatan": "Samarinda Utara"},
+    "Sempaja Barat": {"code": "64.72.05.1007", "kecamatan": "Samarinda Utara"},
+    "Sempaja Timur": {"code": "64.72.05.1008", "kecamatan": "Samarinda Utara"},
+    
+    # Kecamatan Sungai Kunjang (64.72.06)
+    "Teluk Lerong Ulu": {"code": "64.72.06.1001", "kecamatan": "Sungai Kunjang"},
+    "Loa Bahu": {"code": "64.72.06.1002", "kecamatan": "Sungai Kunjang"},
+    "Loa Bakung": {"code": "64.72.06.1003", "kecamatan": "Sungai Kunjang"},
+    "Loa Buah": {"code": "64.72.06.1004", "kecamatan": "Sungai Kunjang"},
+    "Karang Asam Ulu": {"code": "64.72.06.1005", "kecamatan": "Sungai Kunjang"},
+    "Karang Asam Ilir": {"code": "64.72.06.1006", "kecamatan": "Sungai Kunjang"},
+    "Karang Anyar": {"code": "64.72.06.1007", "kecamatan": "Sungai Kunjang"},
+    
+    # Kecamatan Sambutan (64.72.07)
+    "Sambutan": {"code": "64.72.07.1001", "kecamatan": "Sambutan"},
+    "Makroman": {"code": "64.72.07.1002", "kecamatan": "Sambutan"},
+    "Sungai Kapih": {"code": "64.72.07.1003", "kecamatan": "Sambutan"},
+    "Pulau Atas": {"code": "64.72.07.1004", "kecamatan": "Sambutan"},
+    "Sindang Sari": {"code": "64.72.07.1005", "kecamatan": "Sambutan"},
+    
+    # Kecamatan Sungai Pinang (64.72.08)
+    "Sungai Pinang Dalam": {"code": "64.72.08.1001", "kecamatan": "Sungai Pinang"},
+    "Temindung Permai": {"code": "64.72.08.1002", "kecamatan": "Sungai Pinang"},
+    "Mugirejo": {"code": "64.72.08.1003", "kecamatan": "Sungai Pinang"},
+    "Bandara": {"code": "64.72.08.1004", "kecamatan": "Sungai Pinang"},
+    "Gunung Lingai": {"code": "64.72.08.1005", "kecamatan": "Sungai Pinang"},
+    
+    # Kecamatan Samarinda Kota (64.72.09)
+    "Karang Mumus": {"code": "64.72.09.1001", "kecamatan": "Samarinda Kota"},
+    "Pelabuhan": {"code": "64.72.09.1002", "kecamatan": "Samarinda Kota"},
+    "Pasar Pagi": {"code": "64.72.09.1003", "kecamatan": "Samarinda Kota"},
+    "Bugis": {"code": "64.72.09.1004", "kecamatan": "Samarinda Kota"},
+    "Sungai Pinang Luar": {"code": "64.72.09.1005", "kecamatan": "Samarinda Kota"},
+    
+    # Kecamatan Loa Janan Ilir (64.72.10)
+    "Tani Aman": {"code": "64.72.10.1001", "kecamatan": "Loa Janan Ilir"},
+    "Sengkotek": {"code": "64.72.10.1002", "kecamatan": "Loa Janan Ilir"},
+    "Simpang Tiga": {"code": "64.72.10.1003", "kecamatan": "Loa Janan Ilir"},
+    "Rapak Dalam": {"code": "64.72.10.1004", "kecamatan": "Loa Janan Ilir"},
+    "Harapan Baru": {"code": "64.72.10.1005", "kecamatan": "Loa Janan Ilir"},
+}
+
+# Legacy mapping for backward compatibility with LOCATIONS config
+BMKG_LOCATIONS = {
+    "Simpang Lembuswana": "64.72.09.1001",  # Karang Mumus area
+    "Simpang Sempaja": "64.72.05.1006",      # Sempaja Utara
+    "Jalan Antasari": "64.72.03.1005",       # Sidodadi
+    "Lempake (Hulu)": "64.72.05.1001",       # Lempake
+    "Kebon Agung": "64.72.07.1001"           # Sambutan
+}
+# Default location for citywide forecast
+BMKG_DEFAULT_ADM4 = "64.72.09.1001"
+

@@ -28,13 +28,21 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install requests pandas numpy openmeteo-requests requests-cache retry-requests
+          pip install requests pandas numpy openmeteo-requests requests-cache retry-requests duckdb
       
-      - name: Fetch latest weather data
-        id: fetch_data
+      - name: Fetch Open-Meteo weather data
+        id: fetch_openmeteo
         continue-on-error: true
         run: |
           python scripts/fetch_data_headless.py
+        env:
+          TZ: Asia/Makassar
+      
+      - name: Fetch BMKG weather data (59 kelurahan)
+        id: fetch_bmkg
+        continue-on-error: true
+        run: |
+          python scripts/fetch_bmkg_data.py
         env:
           TZ: Asia/Makassar
       
@@ -46,6 +54,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "chore: automated data update [skip ci]"
+            git commit -m "chore: automated weather data update (OpenMeteo + BMKG) [skip ci]"
             git push
           fi

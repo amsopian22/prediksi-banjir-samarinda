@@ -46,7 +46,7 @@ class FloodDatabase:
                 )
             """)
             
-            # Weather data table
+            # Weather data table (Open-Meteo)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS weather_data (
                     id INTEGER PRIMARY KEY,
@@ -61,9 +61,32 @@ class FloodDatabase:
                 )
             """)
             
+            # BMKG Weather data table (per kelurahan)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS bmkg_weather (
+                    id INTEGER PRIMARY KEY,
+                    kelurahan_code VARCHAR,
+                    kelurahan_name VARCHAR,
+                    kecamatan_name VARCHAR,
+                    timestamp TIMESTAMP,
+                    local_datetime TIMESTAMP,
+                    temperature DOUBLE,
+                    humidity DOUBLE,
+                    precipitation DOUBLE,
+                    weather_code INTEGER,
+                    weather_desc VARCHAR,
+                    wind_speed DOUBLE,
+                    wind_direction VARCHAR,
+                    cloud_cover DOUBLE,
+                    visibility DOUBLE,
+                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Create sequence for auto-increment
             conn.execute("CREATE SEQUENCE IF NOT EXISTS pred_seq START 1")
             conn.execute("CREATE SEQUENCE IF NOT EXISTS weather_seq START 1")
+            conn.execute("CREATE SEQUENCE IF NOT EXISTS bmkg_seq START 1")
     
     def log_prediction(self, lat, lon, rain_24h, tide_level, probability, risk_level):
         """Log a prediction to the database."""
@@ -114,10 +137,70 @@ class FloodDatabase:
         with self._get_conn() as conn:
             pred_count = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
             weather_count = conn.execute("SELECT COUNT(*) FROM weather_data").fetchone()[0]
+            bmkg_count = conn.execute("SELECT COUNT(*) FROM bmkg_weather").fetchone()[0]
             return {
                 "predictions": pred_count,
-                "weather_records": weather_count
+                "weather_records": weather_count,
+                "bmkg_records": bmkg_count
             }
+    
+    def log_bmkg_weather(self, df: pd.DataFrame, kelurahan_code: str, kelurahan_name: str, kecamatan_name: str = ""):
+        """Log BMKG weather data for a kelurahan."""
+        with self._get_conn() as conn:
+            for _, row in df.iterrows():
+                conn.execute("""
+                    INSERT INTO bmkg_weather (
+                        id, kelurahan_code, kelurahan_name, kecamatan_name, 
+                        timestamp, local_datetime, temperature, humidity, 
+                        precipitation, weather_code, weather_desc, 
+                        wind_speed, wind_direction, cloud_cover, visibility
+                    )
+                    VALUES (nextval('bmkg_seq'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, [
+                    kelurahan_code,
+                    kelurahan_name,
+                    kecamatan_name,
+                    row.get('date'),
+                    row.get('date'),
+                    row.get('temperature', 0),
+                    row.get('humidity', 0),
+                    row.get('precipitation', 0),
+                    row.get('weather_code', 0),
+                    row.get('weather_desc', ''),
+                    row.get('wind_speed', 0),
+                    row.get('wind_direction', ''),
+                    row.get('cloud_cover', 0),
+                    row.get('visibility', 0)
+                ])
+    
+    def get_bmkg_weather(self, kelurahan_code: str = None, hours: int = 72):
+        """Get BMKG weather data, optionally filtered by kelurahan."""
+        with self._get_conn() as conn:
+            if kelurahan_code:
+                return conn.execute(f"""
+                    SELECT * FROM bmkg_weather 
+                    WHERE kelurahan_code = ?
+                    AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+                    ORDER BY timestamp DESC
+                """, [kelurahan_code]).fetchdf()
+            else:
+                return conn.execute(f"""
+                    SELECT * FROM bmkg_weather 
+                    WHERE fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+                    ORDER BY timestamp DESC
+                """).fetchdf()
+    
+    def get_latest_bmkg_by_kelurahan(self):
+        """Get latest weather data for each kelurahan."""
+        with self._get_conn() as conn:
+            return conn.execute("""
+                SELECT DISTINCT ON (kelurahan_code) 
+                    kelurahan_code, kelurahan_name, kecamatan_name,
+                    timestamp, temperature, humidity, precipitation, 
+                    weather_desc, wind_speed
+                FROM bmkg_weather
+                ORDER BY kelurahan_code, fetched_at DESC
+            """).fetchdf()
 
 # Singleton instance
 _db_instance = None
