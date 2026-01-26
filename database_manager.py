@@ -134,15 +134,22 @@ class FloodDatabase:
     
     def get_stats(self):
         """Get database statistics."""
-        with self._get_conn() as conn:
-            pred_count = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
-            weather_count = conn.execute("SELECT COUNT(*) FROM weather_data").fetchone()[0]
-            bmkg_count = conn.execute("SELECT COUNT(*) FROM bmkg_weather").fetchone()[0]
-            return {
-                "predictions": pred_count,
-                "weather_records": weather_count,
-                "bmkg_records": bmkg_count
-            }
+        try:
+            with self._get_conn() as conn:
+                pred_count = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
+                weather_count = conn.execute("SELECT COUNT(*) FROM weather_data").fetchone()[0]
+                try:
+                    bmkg_count = conn.execute("SELECT COUNT(*) FROM bmkg_weather").fetchone()[0]
+                except duckdb.CatalogException:
+                    bmkg_count = 0
+                return {
+                    "predictions": pred_count,
+                    "weather_records": weather_count,
+                    "bmkg_records": bmkg_count
+                }
+        except duckdb.CatalogException as e:
+            logger.warning(f"Error getting stats: {e}")
+            return {"predictions": 0, "weather_records": 0, "bmkg_records": 0}
     
     def log_bmkg_weather(self, df: pd.DataFrame, kelurahan_code: str, kelurahan_name: str, kecamatan_name: str = ""):
         """Log BMKG weather data for a kelurahan."""
@@ -175,32 +182,41 @@ class FloodDatabase:
     
     def get_bmkg_weather(self, kelurahan_code: str = None, hours: int = 72):
         """Get BMKG weather data, optionally filtered by kelurahan."""
-        with self._get_conn() as conn:
-            if kelurahan_code:
-                return conn.execute(f"""
-                    SELECT * FROM bmkg_weather 
-                    WHERE kelurahan_code = ?
-                    AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
-                    ORDER BY timestamp DESC
-                """, [kelurahan_code]).fetchdf()
-            else:
-                return conn.execute(f"""
-                    SELECT * FROM bmkg_weather 
-                    WHERE fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
-                    ORDER BY timestamp DESC
-                """).fetchdf()
+        try:
+            with self._get_conn() as conn:
+                if kelurahan_code:
+                    return conn.execute(f"""
+                        SELECT * FROM bmkg_weather 
+                        WHERE kelurahan_code = ?
+                        AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+                        ORDER BY timestamp DESC
+                    """, [kelurahan_code]).fetchdf()
+                else:
+                    return conn.execute(f"""
+                        SELECT * FROM bmkg_weather 
+                        WHERE fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+                        ORDER BY timestamp DESC
+                    """).fetchdf()
+        except duckdb.CatalogException as e:
+            # Table doesn't exist yet - return empty DataFrame
+            logger.warning(f"bmkg_weather table not found: {e}. Returning empty DataFrame.")
+            return pd.DataFrame()
     
     def get_latest_bmkg_by_kelurahan(self):
         """Get latest weather data for each kelurahan."""
-        with self._get_conn() as conn:
-            return conn.execute("""
-                SELECT DISTINCT ON (kelurahan_code) 
-                    kelurahan_code, kelurahan_name, kecamatan_name,
-                    timestamp, temperature, humidity, precipitation, 
-                    weather_desc, wind_speed
-                FROM bmkg_weather
-                ORDER BY kelurahan_code, fetched_at DESC
-            """).fetchdf()
+        try:
+            with self._get_conn() as conn:
+                return conn.execute("""
+                    SELECT DISTINCT ON (kelurahan_code) 
+                        kelurahan_code, kelurahan_name, kecamatan_name,
+                        timestamp, temperature, humidity, precipitation, 
+                        weather_desc, wind_speed
+                    FROM bmkg_weather
+                    ORDER BY kelurahan_code, fetched_at DESC
+                """).fetchdf()
+        except duckdb.CatalogException as e:
+            logger.warning(f"bmkg_weather table not found: {e}. Returning empty DataFrame.")
+            return pd.DataFrame()
 
 # Singleton instance
 _db_instance = None
