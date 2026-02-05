@@ -265,3 +265,31 @@ if __name__ == "__main__":
         df['tide_level'] = tides
         print("\nWith Tide:")
         print(df.head())
+
+def load_historical_data():
+    """
+    Loads historical flood data for analysis and visualization.
+    Prioritizes Parquet format for performance (10x faster).
+    Falls back to CSV if Parquet is missing.
+    Returns:
+        pd.DataFrame: Historical dataset
+    """
+    parquet_path = getattr(config, 'DATA_PARQUET_PATH', None)
+    csv_path = getattr(config, 'DATA_CSV_PATH', None)
+    
+    if parquet_path and os.path.exists(parquet_path):
+        try:
+            logger.info(f"Loading historical data from Parquet: {parquet_path}")
+            return pd.read_parquet(parquet_path)
+        except Exception as e:
+            logger.error(f"Failed to load Parquet: {e}")
+            
+    if csv_path and os.path.exists(csv_path):
+        try:
+            logger.info(f"Loading historical data from CSV: {csv_path}")
+            return pd.read_csv(csv_path, parse_dates=['date'])
+        except Exception as e:
+            logger.error(f"Failed to load CSV: {e}")
+            
+    logger.warning("No historical data found.")
+    return pd.DataFrame()

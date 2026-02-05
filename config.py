@@ -13,6 +13,9 @@ MODELS_DIR = os.path.join(BASE_DIR, "models")
 
 MODEL_PATH = os.path.join(MODELS_DIR, "model_banjir_v8_10years.pkl")
 TIDE_MODEL_PATH = os.path.join(MODELS_DIR, "tide_model_urs.pkl")
+DATA_CSV_PATH = os.path.join(BASE_DIR, "data", "dataset_banjir_v8_10years.csv")
+DATA_PARQUET_PATH = os.path.join(BASE_DIR, "data", "dataset_banjir_v8_10years.parquet")
+TIDE_MODEL_PATH = os.path.join(MODELS_DIR, "tide_model_urs.pkl")
 DEM_PATH = os.path.join(DEM_DIR, "DEMNAS_1915-13_v1.0.tif")
 RISK_MAP_PATH = os.path.join(REF_DIR, "samarinda_risk_map_calculated.geojson")
 

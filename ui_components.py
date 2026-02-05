@@ -1104,46 +1104,59 @@ def render_executive_summary(assessment: dict, **kwargs):
     # ... (code preserved below)
 
     """
-    Renders the Executive Summary section as a Hero Banner.
+    Renders the Executive Summary section as a Hero Banner (Ultra-Modern Style).
     """
     # Extract Data
+    import pandas as pd
     level = assessment.get("level", "UNKNOWN")
     label = assessment.get("label", "Unknown")
-    color = assessment.get("color", "gray")
-    rec_text = assessment.get("recommendation", "Tidak ada data.")
+    depth_cm = assessment.get("depth_cm", 0)
+    reasoning = assessment.get("reasoning", "Tidak ada data.")
     
-    # Map color names to hex/palette
-    badge_color = "gray"
-    if color == "green": badge_color = config.COLOR_PALETTE["status_safe"]
-    elif color == "yellow": badge_color = config.COLOR_PALETTE["status_warning"]
-    elif color == "orange": badge_color = "#ff9800" # Orange
-    elif color == "red": badge_color = config.COLOR_PALETTE["status_danger"]
-
-    # Icons & Pulse
-    icon = "🛡️"
-    pulse_class = ""
-    bg_gradient = "linear-gradient(90deg, #1c2541 0%, #0b1021 100%)"
+    # Map to display values matching render_command_center_hero
+    status_text = f"STATUS: {label}"
+    glow_class = "status-glow-safe"
+    text_class = "status-text-safe"
+    status_icon = "✓"
     
-    if level == "NORMAL":
-        icon = "✅"
-    elif level == "WASPADA":
-        icon = "⚠️"
+    if level == "WASPADA":
+        glow_class = "status-glow-warning"
+        text_class = "status-text-warning"
+        status_icon = "⚠"
     elif level == "SIAGA":
-        icon = "📢"
-        pulse_class = "pulse"
-        bg_gradient = "linear-gradient(90deg, rgba(255, 109, 0, 0.15) 0%, rgba(11, 16, 33, 0.8) 100%)"
+        glow_class = "status-glow-danger"
+        text_class = "status-text-danger"
+        status_icon = "📢"
     elif level == "AWAS":
-        icon = "🚨"
-        pulse_class = "pulse-red"
-        bg_gradient = "linear-gradient(90deg, rgba(213, 0, 0, 0.2) 0%, rgba(11, 16, 33, 0.8) 100%)"
+        glow_class = "status-glow-danger"
+        text_class = "status-text-danger"
+        status_icon = "🚨"
+
+    # Get current time
+    now_wita = pd.Timestamp.now(tz=config.TIMEZONE)
+    update_time = now_wita.strftime("%d %b %Y, %H:%M:%S WITA")
 
     st.markdown(f"""
-        <div class="hero-banner {pulse_class}" style="background: {bg_gradient}; border-left: 5px solid {badge_color};">
-            <div style="margin-bottom: 10px; font-size: 0.9rem; letter-spacing: 3px; color: #8b9bb4; text-transform: uppercase;">STATUS SISTEM PERINGATAN DINI</div>
-            <h1 class="hero-status-text" style="color: {badge_color};">{label}</h1>
-            <div class="hero-subtext">
-                {icon} {rec_text}
+    <div class="hero-status-banner {glow_class}">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 30px;">
+            <div style="flex: 2; min-width: 300px;">
+                <div class="status-label">HASIL SIMULASI BANJIR</div>
+                <h1 class="status-text {text_class}">{status_text}</h1>
+                <div class="status-subtitle">
+                    {status_icon} {reasoning}
+                </div>
             </div>
+            <div style="flex: 1; min-width: 200px; text-align: right;">
+                <div style="font-size: 0.75rem; letter-spacing: 2px; color: #6b7a8a; text-transform: uppercase; margin-bottom: 8px;">Estimasi Genangan</div>
+                <div style="font-size: 3rem; font-weight: 800; color: #ffffff; line-height: 1;">{depth_cm:.0f}<span style="font-size: 1.2rem; font-weight: 400; color: #6b7a8a;"> cm</span></div>
+            </div>
+        </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); text-align: right;">
+            <span style="font-size: 0.8rem; color: #8899aa; letter-spacing: 0.5px;">
+                ⏰ Generated: <span style="color: #00d4ff; font-weight: 600;">{update_time}</span>
+            </span>
+        </div>
+    </div>
     """, unsafe_allow_html=True)
 
     # Render Validation Badge if exists
@@ -1160,7 +1173,7 @@ def render_executive_summary(assessment: dict, **kwargs):
                 </span>
             </div>
         """, unsafe_allow_html=True)
-        
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
 def render_risk_context(assessment: dict):
@@ -1490,19 +1503,20 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         # Map Layout Controls
         c_layer1, c_layer2 = st.columns([1, 1])
         with c_layer1:
-            base_map_style = st.radio("Tampilan Dasar Peta:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
+             map_engine = st.radio("Mode Peta:", ["Plotly (Ringan)", "Folium (Interaktif)"], horizontal=True)
             
         with c_layer2:
-            # Layer Control Panel (New Feature)
-            with st.expander("🗂️ Layer Control", expanded=False):
-                show_heatmap = st.checkbox("🔥 Heatmap Risiko", value=True, key="layer_heatmap")
-                show_boundaries = st.checkbox("📍 Batas Kelurahan", value=False, key="layer_boundaries")
-                show_radar = st.checkbox("🌧️ Radar Hujan (RainViewer)", value=True, key="layer_radar")
-                show_safe_markers = st.checkbox("✅ Marker Area Aman", value=True, key="layer_safe")
-                
-                if show_radar:
-                    st.caption("ℹ️ Radar Hujan memerlukan koneksi internet stabil.")
+            base_map_style = "Citra Satelit" # Default
+            if map_engine == "Plotly (Ringan)":
+                base_map_style = st.radio("Tampilan Dasar:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
 
+        if map_engine == "Folium (Interaktif)":
+            # Call Folium Renderer
+            # We pass None for model_pack as strict prediction isn't needed for visualization of pre-calc data
+            render_folium_heatmap(None, hourly_risk_df, geojson_data)
+            return # Skip Plotly rendering
+
+        # --- PLOTLY RENDERING (Existing Code) ---
         # Initialize Map Layers
         layers = []
         mapbox_style = "carto-positron"
@@ -1530,7 +1544,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         ]
 
         # --- LAYER 0: Kelurahan Boundaries (Polygon Outline) ---
-        if show_boundaries:
+        if True: # Always show boundaries in Plotly mode
             fig_map.add_trace(go.Choroplethmapbox(
                 geojson=geojson_data,
                 locations=df_map['NAMOBJ'],
@@ -1546,7 +1560,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             ))
 
         # --- LAYER 1: Heatmap for Risks (Hotspots) ---
-        if show_heatmap and not df_risk.empty:
+        if not df_risk.empty:
             fig_map.add_trace(go.Densitymapbox(
                 lat=df_risk['lat_center'],
                 lon=df_risk['lon_center'],
@@ -1561,7 +1575,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             ))
 
         # --- LAYER 2: Scatter Markers for SAFE areas ---
-        if show_safe_markers and not df_safe.empty:
+        if not df_safe.empty:
             fig_map.add_trace(go.Scattermapbox(
                 lat=df_safe['lat_center'],
                 lon=df_safe['lon_center'],
@@ -1585,7 +1599,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
         # --- LAYER 3: Radar Layer (RainViewer) ---
         radar_info = fetch_radar_timestamp()
         r_ts = None
-        if show_radar:
+        if True: # Always attempt radar in default view
             if radar_info:
                 r_host, r_ts = radar_info
                 layers.append({
@@ -1599,9 +1613,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                     "minzoom": 0,
                     "maxzoom": 10
                 })
-            else:
-                 st.toast("⚠️ Gagal memuat data Radar Hujan. Cek koneksi internet.", icon="📡")
-
+        
         fig_map.update_layout(
             mapbox_style=mapbox_style, 
             mapbox_layers=layers,
