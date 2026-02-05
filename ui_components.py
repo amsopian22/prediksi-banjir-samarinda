@@ -1500,154 +1500,285 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             [1.0, 'rgba(0, 0, 0, 0.9)']       # Ekstrem (Hitam)
         ]
 
-        # Map Layout Controls
-        c_layer1, c_layer2 = st.columns([1, 1])
-        with c_layer1:
-             map_engine = st.radio("Mode Peta:", ["Plotly (Ringan)", "Folium (Interaktif)"], horizontal=True)
-            
-        with c_layer2:
-            base_map_style = "Citra Satelit" # Default
-            if map_engine == "Plotly (Ringan)":
-                base_map_style = st.radio("Tampilan Dasar:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
-
-        if map_engine == "Folium (Interaktif)":
-            # Call Folium Renderer
-            # We pass None for model_pack as strict prediction isn't needed for visualization of pre-calc data
-            render_folium_heatmap(None, hourly_risk_df, geojson_data)
-            return # Skip Plotly rendering
-
-        # --- PLOTLY RENDERING (Existing Code) ---
-        # Initialize Map Layers
-        layers = []
-        mapbox_style = "carto-positron"
-        if base_map_style == "Citra Satelit":
-            mapbox_style = "white-bg"
-            layers.append({
-                "below": 'traces',
-                "sourcetype": "raster",
-                "sourceattribution": "Esri World Imagery",
-                "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
-            })
+        # --- TAB CONTROLS ---
+        tab1, tab2, tab3 = st.tabs(["🗺️ Peta Risiko", "🛣️ Cek Jalan (Baru)", "📊 Statistik Wilayah"])
         
-        fig_map = go.Figure()
-
-        # Prepare risk/safe dataframes for layers
-        df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
-        df_safe = df_map[df_map['heatmap_intensity'] == 0].copy()
-        
-        # Colorscale for Heatmap: Yellow (Low Risk) -> Red -> Black
-        custom_heatmap_colors = [
-            [0.0, 'rgba(255, 235, 59, 0.0)'], # Start Transparent
-            [0.1, 'rgba(255, 235, 59, 0.6)'], # Waspada (Kuning)
-            [0.5, 'rgba(255, 0, 0, 0.8)'],    # Bahaya (Merah)
-            [1.0, 'rgba(0, 0, 0, 0.95)']      # Ekstrem (Hitam)
-        ]
-
-        # --- LAYER 0: Kelurahan Boundaries (Polygon Outline) ---
-        if True: # Always show boundaries in Plotly mode
-            fig_map.add_trace(go.Choroplethmapbox(
-                geojson=geojson_data,
-                locations=df_map['NAMOBJ'],
-                z=[0] * len(df_map),  # Dummy value for uniform styling
-                featureidkey="properties.NAMOBJ",
-                colorscale=[[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],  # Transparent fill
-                marker_opacity=0,
-                marker_line_width=1.5,
-                marker_line_color='#3498db',  # Blue outline
-                showscale=False,
-                hoverinfo='text',
-                text=df_map['NAMOBJ']
-            ))
-
-        # --- LAYER 1: Heatmap for Risks (Hotspots) ---
-        if not df_risk.empty:
-            fig_map.add_trace(go.Densitymapbox(
-                lat=df_risk['lat_center'],
-                lon=df_risk['lon_center'],
-                z=df_risk['heatmap_intensity'],
-                radius=40,
-                colorscale=custom_heatmap_colors,
-                zmin=0,
-                zmax=1,
-                opacity=0.8,
-                hoverinfo='text',
-                text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']:.0%}<br>Estimasi: {x['depth_est']}", axis=1)
-            ))
-
-        # --- LAYER 2: Scatter Markers for SAFE areas ---
-        if not df_safe.empty:
-            fig_map.add_trace(go.Scattermapbox(
-                lat=df_safe['lat_center'],
-                lon=df_safe['lon_center'],
-                mode='markers',
-                marker=dict(
-                    size=8,
-                    color='#00C853',
-                    opacity=0.6
-                ),
-                text=df_safe.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: AMAN<br>Elevasi: {x['mean_elev']:.1f} m", axis=1),
-                hoverinfo='text'
-            ))
-
-        # Helper invisible point to ensure centering if absolutely no data (edge case)
-        if df_risk.empty and df_safe.empty:
-            fig_map.add_trace(go.Scattermapbox(
-                lat=[-0.498], lon=[117.154], 
-                mode='markers', marker=dict(size=0, opacity=0)
-            ))
-
-        # --- LAYER 3: Radar Layer (RainViewer) ---
-        radar_info = fetch_radar_timestamp()
-        r_ts = None
-        if True: # Always attempt radar in default view
-            if radar_info:
-                r_host, r_ts = radar_info
-                layers.append({
-                    "below": 'traces',
-                    "sourcetype": "raster",
-                    "sourceattribution": "RainViewer Radar",
-                    "source": [
-                        f"{r_host}/v2/radar/{r_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
-                    ],
-                    "opacity": 0.6,
-                    "minzoom": 0,
-                    "maxzoom": 10
-                })
-        
-        fig_map.update_layout(
-            mapbox_style=mapbox_style, 
-            mapbox_layers=layers,
-            mapbox_zoom=10.5, # Slightly zoomed in for heatmap view
-            mapbox_center={"lat": -0.498, "lon": 117.154},
-            margin={"r":0,"t":0,"l":0,"b":0},
-            height=550,
-            showlegend=False,
-            coloraxis_showscale=False
-        )
-        
-        st.plotly_chart(fig_map, use_container_width=True, key=f"map_heat_{r_ts or 'none'}")
-        
-        # Legend (Custom HTML)
-        st.markdown("""
-        <div style='display: flex; gap: 12px; justify-content: center; font-size: 12px; margin-bottom: 20px; flex-wrap: wrap;'>
-            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: black; border-radius: 50%; display: inline-block;'></span> <b>EKSTREM</b>: Tenggelam</div>
-            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: red; border-radius: 50%; display: inline-block;'></span> <b>BAHAYA</b>: Risiko Tinggi</div>
-            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: #FFEB3B; border-radius: 50%; display: inline-block;'></span> <b>WASPADA</b>: Risiko Rendah</div>
-            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: #00C853; border-radius: 50%; display: inline-block;'></span> <b>AMAN</b>: Tidak Berisiko</div>
-            <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; border: 2px solid #3498db; border-radius: 2px; display: inline-block;'></span> <b>Batas Kelurahan</b></div>
-        </div>
-        """, unsafe_allow_html=True)
+        with tab1:
+            # Map Layout Controls
+            c_layer1, c_layer2 = st.columns([1, 1])
+            with c_layer1:
+                 map_engine = st.radio("Mode Peta:", ["Plotly (Ringan)", "Folium (Interaktif)"], horizontal=True)
+                
+            with c_layer2:
+                base_map_style = "Citra Satelit" # Default
+                if map_engine == "Plotly (Ringan)":
+                    base_map_style = st.radio("Tampilan Dasar:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
     
-    with st.expander("Lihat Detail Elevasi Kelurahan"):
-        top_risk = df_map.sort_values('mean_elev', ascending=True).head(10)
-        col_map1, col_map2 = st.columns([2, 1])
-        with col_map1:
-            st.dataframe(
-                top_risk[['NAMOBJ', 'mean_elev', 'risk_pct']].rename(columns={'NAMOBJ': 'Kelurahan', 'risk_pct': 'Persentase Dataran Rendah (%)', 'mean_elev': 'Elevasi Rata-rata (m)'}),
-                use_container_width=True, hide_index=True
-            )
-        with col_map2:
-            st.info("ℹ️ **Analisis Data DEM**: Heatmap di atas digerakkan oleh satu titik pusat (Centroid) per Kelurahan. Area gelap menunjukkan pusat kelurahan yang memiliki rata-rata elevasi rendah dan rentan terhadap pasang air laut.")
+            if map_engine == "Folium (Interaktif)":
+                # Call Folium Renderer
+                # We pass None for model_pack as strict prediction isn't needed for visualization of pre-calc data
+                render_folium_heatmap(None, hourly_risk_df, geojson_data)
+               
+            else:
+                # --- PLOTLY RENDERING (Existing Code) ---
+                # Initialize Map Layers
+                layers = []
+                mapbox_style = "carto-positron"
+                if base_map_style == "Citra Satelit":
+                    mapbox_style = "white-bg"
+                    layers.append({
+                        "below": 'traces',
+                        "sourcetype": "raster",
+                        "sourceattribution": "Esri World Imagery",
+                        "source": ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+                    })
+                
+                fig_map = go.Figure()
+        
+                # Prepare risk/safe dataframes for layers
+                df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
+                df_safe = df_map[df_map['heatmap_intensity'] == 0].copy()
+                
+                # Colorscale for Heatmap: Yellow (Low Risk) -> Red -> Black
+                custom_heatmap_colors = [
+                    [0.0, 'rgba(255, 235, 59, 0.0)'], # Start Transparent
+                    [0.1, 'rgba(255, 235, 59, 0.6)'], # Waspada (Kuning)
+                    [0.5, 'rgba(255, 0, 0, 0.8)'],    # Bahaya (Merah)
+                    [1.0, 'rgba(0, 0, 0, 0.95)']      # Ekstrem (Hitam)
+                ]
+        
+                # --- LAYER 0: Kelurahan Boundaries (Polygon Outline) ---
+                if True: # Always show boundaries in Plotly mode
+                    fig_map.add_trace(go.Choroplethmapbox(
+                        geojson=geojson_data,
+                        locations=df_map['NAMOBJ'],
+                        z=[0] * len(df_map),  # Dummy value for uniform styling
+                        featureidkey="properties.NAMOBJ",
+                        colorscale=[[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],  # Transparent fill
+                        marker_opacity=0,
+                        marker_line_width=1.5,
+                        marker_line_color='#3498db',  # Blue outline
+                        showscale=False,
+                        hoverinfo='text',
+                        text=df_map['NAMOBJ']
+                    ))
+        
+                # --- LAYER 1: Heatmap for Risks (Hotspots) ---
+                if not df_risk.empty:
+                    fig_map.add_trace(go.Densitymapbox(
+                        lat=df_risk['lat_center'],
+                        lon=df_risk['lon_center'],
+                        z=df_risk['heatmap_intensity'],
+                        radius=40,
+                        colorscale=custom_heatmap_colors,
+                        zmin=0,
+                        zmax=1,
+                        opacity=0.8,
+                        hoverinfo='text',
+                        text=df_risk.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: {x['status_text']}<br>Level: {x['heatmap_intensity']:.0%}<br>Estimasi: {x['depth_est']}", axis=1)
+                    ))
+        
+                # --- LAYER 2: Scatter Markers for SAFE areas ---
+                if not df_safe.empty:
+                    fig_map.add_trace(go.Scattermapbox(
+                        lat=df_safe['lat_center'],
+                        lon=df_safe['lon_center'],
+                        mode='markers',
+                        marker=dict(
+                            size=8,
+                            color='#00C853',
+                            opacity=0.6
+                        ),
+                        text=df_safe.apply(lambda x: f"<b>{x['NAMOBJ']}</b><br>Status: AMAN<br>Elevasi: {x['mean_elev']:.1f} m", axis=1),
+                        hoverinfo='text'
+                    ))
+        
+                # Helper invisible point to ensure centering if absolutely no data (edge case)
+                if df_risk.empty and df_safe.empty:
+                    fig_map.add_trace(go.Scattermapbox(
+                        lat=[-0.498], lon=[117.154], 
+                        mode='markers', marker=dict(size=0, opacity=0)
+                    ))
+        
+                # --- LAYER 3: Radar Layer (RainViewer) ---
+                radar_info = fetch_radar_timestamp()
+                r_ts = None
+                if True: # Always attempt radar in default view
+                    if radar_info:
+                        r_host, r_ts = radar_info
+                        layers.append({
+                            "below": 'traces',
+                            "sourcetype": "raster",
+                            "sourceattribution": "RainViewer Radar",
+                            "source": [
+                                f"{r_host}/v2/radar/{r_ts}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+                            ],
+                            "opacity": 0.6,
+                            "minzoom": 0,
+                            "maxzoom": 10
+                        })
+                
+                fig_map.update_layout(
+                    mapbox_style=mapbox_style, 
+                    mapbox_layers=layers,
+                    mapbox_zoom=10.5, # Slightly zoomed in for heatmap view
+                    mapbox_center={"lat": -0.498, "lon": 117.154},
+                    margin={"r":0,"t":0,"l":0,"b":0},
+                    height=550,
+                    showlegend=False,
+                    coloraxis_showscale=False
+                )
+                
+                st.plotly_chart(fig_map, use_container_width=True, key=f"map_heat_{r_ts or 'none'}")
+                
+                # Legend (Custom HTML)
+                st.markdown("""
+                <div style='display: flex; gap: 12px; justify-content: center; font-size: 12px; margin-bottom: 20px; flex-wrap: wrap;'>
+                    <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: black; border-radius: 50%; display: inline-block;'></span> <b>EKSTREM</b>: Tenggelam</div>
+                    <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: red; border-radius: 50%; display: inline-block;'></span> <b>BAHAYA</b>: Risiko Tinggi</div>
+                    <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: #FFEB3B; border-radius: 50%; display: inline-block;'></span> <b>WASPADA</b>: Risiko Rendah</div>
+                    <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; background: #00C853; border-radius: 50%; display: inline-block;'></span> <b>AMAN</b>: Tidak Berisiko</div>
+                    <div style='display: flex; align-items: center; gap: 4px;'><span style='width: 10px; height: 10px; border: 2px solid #3498db; border-radius: 2px; display: inline-block;'></span> <b>Batas Kelurahan</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with st.expander("Lihat Detail Elevasi Kelurahan"):
+                top_risk = df_map.sort_values('mean_elev', ascending=True).head(10)
+                col_map1, col_map2 = st.columns([2, 1])
+                with col_map1:
+                    st.dataframe(
+                        top_risk[['NAMOBJ', 'mean_elev', 'risk_pct']].rename(columns={'NAMOBJ': 'Kelurahan', 'risk_pct': 'Persentase Dataran Rendah (%)', 'mean_elev': 'Elevasi Rata-rata (m)'}),
+                        use_container_width=True, hide_index=True
+                    )
+                with col_map2:
+                    st.info("ℹ️ **Analisis Data DEM**: Heatmap di atas digerakkan oleh satu titik pusat (Centroid) per Kelurahan. Area gelap menunjukkan pusat kelurahan yang memiliki rata-rata elevasi rendah dan rentan terhadap pasang air laut.")
+
+        with tab2:
+            st.markdown("### 🛣️ Analisis Dampak Jalan (Road Impact)")
+            
+            # Load Road Data (Cached)
+            @st.cache_data
+            def load_roads_data():
+                import geopandas as gpd
+                import os
+                path = "data/samarinda_roads.parquet"
+                if os.path.exists(path):
+                    return gpd.read_parquet(path)
+                return None
+            
+            gdf_roads = load_roads_data()
+            
+            if gdf_roads is None:
+                st.warning("⚠️ Data jaringan jalan belum tersedia. Jalankan `python scripts/fetch_osm_roads.py`.")
+            else:
+                # User Input
+                road_names = sorted(gdf_roads['name'].unique().tolist())
+                selected_road = st.selectbox("🔍 Cari Nama Jalan:", options=road_names)
+                
+                if selected_road:
+                    # Filter Road
+                    road_geom = gdf_roads[gdf_roads['name'] == selected_road]
+                    
+                    # Prepare Flood Polygons (High Risk Only)
+                    df_risk_poly = df_risk[df_risk['heatmap_intensity'] > 0.3]
+                    
+                    if not df_risk_poly.empty and geojson_data:
+                        import geopandas as gpd
+                        from shapely.geometry import shape
+                        
+                        # Convert to GDF
+                        features = []
+                        for f in geojson_data['features']:
+                            props = f['properties']
+                            name = props.get('NAMOBJ')
+                            if name in df_risk_poly['NAMOBJ'].values:
+                                # Get Risk Info
+                                risk_row = df_risk_poly[df_risk_poly['NAMOBJ'] == name].iloc[0]
+                                features.append({
+                                    'geometry': shape(f['geometry']),
+                                    'depth_est': risk_row['depth_est'],
+                                    'intensity': risk_row['heatmap_intensity'],
+                                    'status': risk_row['status_text']
+                                })
+                        
+                        if features:
+                            gdf_flood = gpd.GeoDataFrame(features, crs="EPSG:4326")
+                            
+                            # INTERSECTION ANALYSIS
+                            # Ensure CRS matches
+                            if gdf_roads.crs != gdf_flood.crs:
+                                gdf_flood = gdf_flood.to_crs(gdf_roads.crs)
+                            
+                            # Spatial Join / Overlay
+                            # Clip roads by flood polygons
+                            try:
+                                inundated = gpd.overlay(road_geom, gdf_flood, how='intersection')
+                                
+                                if not inundated.empty:
+                                    # Calculate Length (approx in degrees, need projection for meters)
+                                    # Simple approximation: 1 deg ~ 111km
+                                    # Better: project to UTM 50S (EPSG:32750) for Samarinda
+                                    inundated_proj = inundated.to_crs(epsg=32750) 
+                                    total_len_m = inundated_proj.length.sum()
+                                    
+                                    max_depth_txt = inundated.iloc[0]['depth_est'] # Simplified
+                                    max_status = inundated.iloc[0]['status']
+                                    
+                                    st.error(f"⚠️ **TERDAMPAK BANJIR**")
+                                    
+                                    # Metric Cards
+                                    m1, m2, m3 = st.columns(3)
+                                    m1.metric("Panjang Tergenang", f"{total_len_m:.0f} meter")
+                                    m2.metric("Status Tertinggi", max_status)
+                                    m3.metric("Estimasi Kedalaman", max_depth_txt)
+                                    
+                                    st.caption(f"Visualisasi segmen jalan `{selected_road}` yang memotong area risiko tinggi.")
+                                    
+                                    # Mini Map of the Road
+                                    # using folium for detail
+                                    import folium
+                                    from streamlit_folium import st_folium
+                                    
+                                    center_lat = inundated.geometry.centroid.y.mean()
+                                    center_lon = inundated.geometry.centroid.x.mean()
+                                    
+                                    m = folium.Map(location=[center_lat, center_lon], zoom_start=15)
+                                    
+                                    # Add Flood Polygons
+                                    folium.GeoJson(
+                                        gdf_flood,
+                                        style_function=lambda x: {'fillColor': 'red', 'color': 'red', 'weight': 1, 'fillOpacity': 0.3},
+                                        tooltip="Area Banjir"
+                                    ).add_to(m)
+                                    
+                                    # Add Road (All segments)
+                                    folium.GeoJson(
+                                        road_geom,
+                                        style_function=lambda x: {'color': 'blue', 'weight': 4},
+                                        tooltip=f"Jalan {selected_road}"
+                                    ).add_to(m)
+                                    
+                                    # Add Inundated Segments
+                                    folium.GeoJson(
+                                        inundated,
+                                        style_function=lambda x: {'color': 'orange', 'weight': 6, 'dashArray': '5, 5'},
+                                        tooltip="Segmen Tergenang"
+                                    ).add_to(m)
+                                    
+                                    st_folium(m, height=300, use_container_width=True)
+                                    
+                                else:
+                                    st.success(f"✅ **Jalan Aman.** `{selected_road}` tidak memotong area genangan prediksi saat ini.")
+                            except Exception as e:
+                                st.error(f"Gagal melakukan overlay spatial: {e}")
+                                
+                        else:
+                             st.success("✅ **Jalan Aman.** Area sekitar aman.")
+                    else:
+                        st.info("ℹ️ Tidak ada risiko banjir signifikan saat ini untuk dianalisis.")
+
+        with tab3:
+            st.info("Dashboard Statistik Wilayah (Coming Soon)")
 
 
 def render_folium_heatmap(model_pack, hourly_risk_df: pd.DataFrame, geojson_data: dict):
