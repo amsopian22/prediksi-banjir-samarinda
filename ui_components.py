@@ -1738,6 +1738,41 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                     # Filter Road
                     road_geom = gdf_roads[gdf_roads['name'] == selected_road]
                     
+                    # --- NEW: Physical Elevation Analysis ---
+                    # Use the pre-calculated DEM elevation from the parquet file
+                    avg_road_elev = road_geom['mean_elev'].mean() if 'mean_elev' in road_geom.columns else 5.0
+                    min_road_elev = road_geom['min_elev'].min() if 'min_elev' in road_geom.columns else 0.0
+                    
+                    # Calculate Water Level Check
+                    # Water Level > Road Elevation = FLOOD
+                    # TIDE_DATUM_OFFSET converts Gauge Height to Approx Ground Relative
+                    # We add a buffer for Rainfall Accumulation (Simulated)
+                    
+                    water_level_absolute = sim_tide_level - config.TIDE_DATUM_OFFSET
+                    # Rainfall Contribution (Rough Estimate: 100mm rain ~ +0.1m accumulation in bad drainage)
+                    rain_contrib = (hourly_risk_df['rain_rolling_24h'].max() / 1000.0) * 2 # Factor 2 for drainage fail
+                    
+                    total_flood_level = water_level_absolute + rain_contrib
+                    
+                    # Validate against Road
+                    flood_depth_on_road = total_flood_level - avg_road_elev
+                    
+                    st.markdown(f"**Analisis Elevasi Fisik (DEM):**")
+                    c_e1, c_e2, c_e3 = st.columns(3)
+                    c_e1.metric("Elevasi Jalan", f"{avg_road_elev:.2f} m", help="Rata-rata ketinggian jalan dari DEM")
+                    c_e2.metric("Level Air (Est)", f"{total_flood_level:.2f} m", help="Pasang + Akumulasi Hujan")
+                    
+                    is_flooded_physically = flood_depth_on_road > 0
+                    
+                    if is_flooded_physically:
+                        c_e3.metric("Status", "TERGENANG", f"{flood_depth_on_road*100:.1f} cm", delta_color="inverse")
+                        st.error(f"⚠️ **PERINGATAN BAHAYA**: Level air ({total_flood_level:.2f}m) melampaui tinggi jalan ({avg_road_elev:.2f}m).")
+                    else:
+                        c_e3.metric("Status", "AMAN", f"Margin {-flood_depth_on_road*100:.1f} cm")
+                        st.success(f"✅ **DAPAT DILALUI**: Jalan lebih tinggi dari prediksi genangan.")
+
+                    # --- Visual Overlay (Validation) ---
+                    # Only calculate intersection if we suspect risk or just for visual context
                     # Prepare Flood Polygons (High Risk Only)
                     df_risk_poly = df_risk[df_risk['heatmap_intensity'] > 0.3]
                     
@@ -1773,66 +1808,44 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                             try:
                                 inundated = gpd.overlay(road_geom, gdf_flood, how='intersection')
                                 
+                                # Visualize Map
+                                import folium
+                                from streamlit_folium import st_folium
+                                
+                                center_lat = road_geom.geometry.centroid.y.mean()
+                                center_lon = road_geom.geometry.centroid.x.mean()
+                                
+                                m = folium.Map(location=[center_lat, center_lon], zoom_start=15)
+                                
+                                # Road (Blue)
+                                folium.GeoJson(
+                                    road_geom,
+                                    style_function=lambda x: {'color': 'blue', 'weight': 5},
+                                    tooltip=f"Jalan {selected_road} (Elev: {avg_road_elev:.1f}m)"
+                                ).add_to(m)
+                                
+                                # Flood (Red)
+                                folium.GeoJson(
+                                    gdf_flood,
+                                    style_function=lambda x: {'fillColor': 'red', 'color': 'red', 'weight': 0, 'fillOpacity': 0.3},
+                                    tooltip="Area Risiko Model"
+                                ).add_to(m)
+
                                 if not inundated.empty:
-                                    # Calculate Length (approx in degrees, need projection for meters)
-                                    # Simple approximation: 1 deg ~ 111km
-                                    # Better: project to UTM 50S (EPSG:32750) for Samarinda
-                                    inundated_proj = inundated.to_crs(epsg=32750) 
-                                    total_len_m = inundated_proj.length.sum()
-                                    
-                                    max_depth_txt = inundated.iloc[0]['depth_est'] # Simplified
-                                    max_status = inundated.iloc[0]['status']
-                                    
-                                    st.error(f"⚠️ **TERDAMPAK BANJIR**")
-                                    
-                                    # Metric Cards
-                                    m1, m2, m3 = st.columns(3)
-                                    m1.metric("Panjang Tergenang", f"{total_len_m:.0f} meter")
-                                    m2.metric("Status Tertinggi", max_status)
-                                    m3.metric("Estimasi Kedalaman", max_depth_txt)
-                                    
-                                    st.caption(f"Visualisasi segmen jalan `{selected_road}` yang memotong area risiko tinggi.")
-                                    
-                                    # Mini Map of the Road
-                                    # using folium for detail
-                                    import folium
-                                    from streamlit_folium import st_folium
-                                    
-                                    center_lat = inundated.geometry.centroid.y.mean()
-                                    center_lon = inundated.geometry.centroid.x.mean()
-                                    
-                                    m = folium.Map(location=[center_lat, center_lon], zoom_start=15)
-                                    
-                                    # Add Flood Polygons
-                                    folium.GeoJson(
-                                        gdf_flood,
-                                        style_function=lambda x: {'fillColor': 'red', 'color': 'red', 'weight': 1, 'fillOpacity': 0.3},
-                                        tooltip="Area Banjir"
-                                    ).add_to(m)
-                                    
-                                    # Add Road (All segments)
-                                    folium.GeoJson(
-                                        road_geom,
-                                        style_function=lambda x: {'color': 'blue', 'weight': 4},
-                                        tooltip=f"Jalan {selected_road}"
-                                    ).add_to(m)
-                                    
-                                    # Add Inundated Segments
+                                    # Overlap (Orange)
                                     folium.GeoJson(
                                         inundated,
                                         style_function=lambda x: {'color': 'orange', 'weight': 6, 'dashArray': '5, 5'},
-                                        tooltip="Segmen Tergenang"
+                                        tooltip="Area Berpotongan"
                                     ).add_to(m)
-                                    
-                                    st_folium(m, height=300, use_container_width=True)
-                                    
-                                else:
-                                    st.success(f"✅ **Jalan Aman.** `{selected_road}` tidak memotong area genangan prediksi saat ini.")
+                                
+                                st_folium(m, height=300, use_container_width=True)
+                                
                             except Exception as e:
                                 st.error(f"Gagal melakukan overlay spatial: {e}")
                                 
                         else:
-                             st.success("✅ **Jalan Aman.** Area sekitar aman.")
+                             st.success("Visualisasi: Area sekitar aman dari poligon model.")
                     else:
                         st.info("ℹ️ Tidak ada risiko banjir signifikan saat ini untuk dianalisis.")
 
