@@ -92,44 +92,31 @@ def debug_prediction():
     result = model_utils.predict_flood(model_pack, input_data)
     
     print("\n📊 FINAL RESULT:")
-    print(f"   Probability: {result['probability']:.4f}")
+    print(f"   Depth: {result['depth_cm']:.2f} cm")
     print(f"   Level: {result['level']}")
     print(f"   Reasoning: {result['reasoning']}")
     
     # Heuristic Check
-    base_prob_estimate = result['probability']
+    # (Since we are now using Depth, not Probability, direct comparison is harder, 
+    # but we can print the raw features for manual inspection)
     
     # Reverse Engineer the Heuristics based on logic in model_utils.py
-    heuristics_boost = 0
+    # Reverse Engineer the Heuristics (Simplified for Depth)
+    # The V8 Model logic in model_utils.py doesn't apply explicit heuristic boosts to depth 
+    # the same way it did for probability. The model itself (Random Forest) learns these patterns.
+    # However, we can highlight risk factors present in the input.
     
-    # Spatial Boost
-    flow_acc = input_data.get('flow_accumulation', 0)
-    rain = input_data.get('rain_sum_imputed', 0)
-    if flow_acc > 5000 and rain > 20:
-        boost = min(0.15, (flow_acc / 50000) * 0.10)
-        print(f"   🚨 Spatial Heuristic Active: +{boost:.2f} (FlowAcc={flow_acc}, Rain={rain})")
-        heuristics_boost += boost
+    print("\n🔍 RISK FACTOR ANALYSIS:")
+    if input_data.get('pasut_msl_max', 0) > 2.5:
+        print("   🌊 High Tide Detected (>2.5m)")
         
-    # Upstream Boost
+    if input_data.get('rain_sum_imputed', 0) > 50:
+        print("   🌧️ Heavy Rain Detected (>50mm)")
+        
     if input_data.get('upstream_rain', 0) > 20:
-        print(f"   🚨 Upstream Heuristic Active: +0.10")
-        heuristics_boost += 0.10
+        print("   ⛰️ Upstream Rain Detected")
         
-    # Runoff Boost
-    runoff = input_data.get('runoff_coefficient', 0.85)
-    if runoff > 0.8:
-        print(f"   🚨 Urban Runoff Heuristic Active: +0.05")
-        heuristics_boost += 0.05
-    elif runoff < 0.6:
-        print(f"   ⬇️ Green Area Reduction: -0.05")
-        heuristics_boost -= 0.05
-        
-    estimated_raw_model = base_prob_estimate - heuristics_boost
-    print(f"\n   📉 Estimated Base Model Probability: {estimated_raw_model:.4f}")
-    print(f"   📈 Total Heuristic Boost: {heuristics_boost:.4f}")
-    
-    if heuristics_boost > 0.1:
-        print("\n⚠️  CONCLUSION: High heuristic bias detected. This explains why prediction might correspond poorly to ML model output.")
+    print(f"\n✅ Diagnostic Complete. Model V8 Output: {result['depth_cm']:.2f} cm")
 
 if __name__ == "__main__":
     debug_prediction()

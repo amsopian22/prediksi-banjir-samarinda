@@ -455,9 +455,48 @@ def load_custom_css():
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             border-radius: 10px !important;
         }
+
+        /* ---- SLIDER REFINEMENT ---- */
+        .stSlider [data-baseweb="slider"] {
+            margin-top: 15px;
+            margin-bottom: 25px;
+        }
         
-        .stSlider > div > div > div {
-            background: linear-gradient(90deg, #00d4ff 0%, #0099ff 100%) !important;
+        /* Garis Slider (Track) */
+        .stSlider [data-baseweb="slider"] > div:first-child > div:first-child {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            height: 6px !important;
+            border-radius: 3px !important;
+        }
+        
+        /* Garis Aktif (Progress) */
+        .stSlider [data-baseweb="slider"] [data-testid="stSliderTickBar"] + div > div {
+            background: linear-gradient(90deg, #00d4ff, #0099ff) !important;
+            height: 6px !important;
+        }
+
+        /* Angka di atas thumb (Current Value) */
+        div[data-testid="stThumbValue"] {
+            background-color: transparent !important;
+            color: #00d4ff !important;
+            font-family: 'Inter', sans-serif !important;
+            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+        }
+
+        /* Label Min/Max (Tepi Slider) */
+        [data-testid="stTickBarMin"], [data-testid="stTickBarMax"] {
+            background-color: transparent !important;
+            color: #6b7a8a !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 0.75rem !important;
+            top: 10px !important;
+        }
+        
+        /* Menghilangkan border/background liar pada angka slider */
+        .stSlider span {
+            background: transparent !important;
+            border: none !important;
         }
         
         /* ---- MODERN TABS (PREMIUM PILL DESIGN) ---- */

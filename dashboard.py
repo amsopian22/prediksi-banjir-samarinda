@@ -299,10 +299,8 @@ if spatial_extractor:
                 # 3. Decision Support (Tabs)
                 st.markdown("---")
                 
-                # Filter Date (Global for Dashboard)
-                col_filter, col_spacer = st.columns([2, 5])
-                with col_filter:
-                    selected_date = st.date_input("Filter Operasi:", value=pd.Timestamp.now().date())
+                # Use current date as default without manual filter widget
+                selected_date = pd.Timestamp.now().date()
                 
                 import json
                 geojson_data = None
