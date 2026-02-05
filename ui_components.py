@@ -1544,7 +1544,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 # Prepare risk/safe dataframes for layers
                 # (Already defined above)
                 
-                # --- LAYER OPTIONAL: Major Roads ---
+                # --- LAYER OPTIONAL: Major Roads (Elevation Colored) ---
                 if show_roads:
                     # Load Roads (Lazy Load)
                     @st.cache_data
@@ -1560,43 +1560,65 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                     if gdf_all_roads is not None:
                          # Filter Major Roads only for performance
                          major_types = ['motorway', 'trunk', 'primary', 'secondary']
-                         gdf_major = gdf_all_roads[gdf_all_roads['highway'].isin(major_types)]
+                         gdf_major = gdf_all_roads[gdf_all_roads['highway'].isin(major_types)].copy()
                          
                          if not gdf_major.empty:
-                             # Plotly Scattermapbox for Lines
-                             lats = []
-                             lons = []
-                             names = []
-                             for idx, row in gdf_major.iterrows():
-                                 if row.geometry.geom_type == 'LineString':
-                                     coords = list(row.geometry.coords)
-                                     for lat, lon in coords: # Check coord order! Shapely is (x, y) = (lon, lat)
-                                         lons.append(lat) # Wait, coords is (lon, lat)
-                                         lats.append(lon)
-                                     lons.append(None) # Break line
-                                     lats.append(None)
-                                     # names.append(row['name']) # Hover per point is tricky in single trace
+                             # --- Elevation-based Coloring ---
+                             # Classify roads by elevation
+                             # Low (<3m): High Risk (Red)
+                             # Medium (3-6m): Moderate Risk (Yellow)
+                             # High (>6m): Safe (Green)
                              
-                             # Correct extraction
-                             # Shapely coords are (lon, lat)
-                             x_coords = []
-                             y_coords = []
-                             for geom in gdf_major.geometry:
-                                 if geom.geom_type == 'LineString':
-                                     xs, ys = geom.xy
-                                     x_coords.extend(list(xs))
-                                     x_coords.append(None)
-                                     y_coords.extend(list(ys))
-                                     y_coords.append(None)
+                             def get_elev_category(elev):
+                                 if pd.isna(elev) or elev < 3:
+                                     return 'low'
+                                 elif elev < 6:
+                                     return 'medium'
+                                 else:
+                                     return 'high'
                              
-                             fig_map.add_trace(go.Scattermapbox(
-                                 lat=y_coords,
-                                 lon=x_coords,
-                                 mode='lines',
-                                 line=dict(width=2, color='orange'),
-                                 name='Jalan Utama',
-                                 hoverinfo='skip' # Performance optimization
-                             ))
+                             elev_col = 'mean_elev' if 'mean_elev' in gdf_major.columns else None
+                             
+                             elev_colors = {
+                                 'low': '#E53935',    # Red
+                                 'medium': '#FDD835', # Yellow
+                                 'high': '#43A047'    # Green
+                             }
+                             elev_labels = {
+                                 'low': '🔴 Jalan Rendah (<3m)',
+                                 'medium': '🟡 Jalan Sedang (3-6m)',
+                                 'high': '🟢 Jalan Tinggi (>6m)'
+                             }
+                             
+                             if elev_col:
+                                 gdf_major['elev_cat'] = gdf_major[elev_col].apply(get_elev_category)
+                             else:
+                                 gdf_major['elev_cat'] = 'medium' # Default if no elevation data
+                             
+                             # Render each category as separate trace
+                             for cat in ['low', 'medium', 'high']:
+                                 gdf_cat = gdf_major[gdf_major['elev_cat'] == cat]
+                                 if gdf_cat.empty:
+                                     continue
+                                     
+                                 x_coords = []
+                                 y_coords = []
+                                 for geom in gdf_cat.geometry:
+                                     if geom.geom_type == 'LineString':
+                                         xs, ys = geom.xy
+                                         x_coords.extend(list(xs))
+                                         x_coords.append(None)
+                                         y_coords.extend(list(ys))
+                                         y_coords.append(None)
+                                 
+                                 fig_map.add_trace(go.Scattermapbox(
+                                     lat=y_coords,
+                                     lon=x_coords,
+                                     mode='lines',
+                                     line=dict(width=3, color=elev_colors[cat]),
+                                     name=elev_labels[cat],
+                                     hoverinfo='skip'
+                                 ))
 
                 # Colorscale for Heatmap: Yellow (Low Risk) -> Red -> Black
                 custom_heatmap_colors = [
