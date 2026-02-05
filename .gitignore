@@ -47,3 +47,8 @@ new-key-sentinel/
 
 # Local testing
 *.local.*
+
+# Database backup and data
+*.duckdb
+*.duckdb.corrupted
+*.corrupted

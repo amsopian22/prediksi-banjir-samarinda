@@ -25,68 +25,81 @@ class FloodDatabase:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
     
     def _get_conn(self):
-        return duckdb.connect(self.db_path)
-    
+        try:
+            return duckdb.connect(self.db_path)
+        except duckdb.SerializationException as e:
+            logger.error(f"Database corrupted or version mismatch: {e}. Renaming and starting fresh.")
+            old_path = self.db_path + ".corrupted"
+            if os.path.exists(self.db_path):
+                import shutil
+                shutil.move(self.db_path, old_path)
+            return duckdb.connect(self.db_path)
+
     def _init_schema(self):
         """Initialize database schema."""
-        with self._get_conn() as conn:
-            # Historical predictions table
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS predictions (
-                    id INTEGER PRIMARY KEY,
-                    timestamp TIMESTAMP,
-                    latitude DOUBLE,
-                    longitude DOUBLE,
-                    rain_24h DOUBLE,
-                    tide_level DOUBLE,
-                    probability DOUBLE,
-                    risk_level VARCHAR,
-                    actual_outcome VARCHAR,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # Weather data table (Open-Meteo)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS weather_data (
-                    id INTEGER PRIMARY KEY,
-                    timestamp TIMESTAMP,
-                    temperature DOUBLE,
-                    humidity DOUBLE,
-                    precipitation DOUBLE,
-                    rain DOUBLE,
-                    pressure DOUBLE,
-                    wind_speed DOUBLE,
-                    source VARCHAR DEFAULT 'open-meteo'
-                )
-            """)
-            
-            # BMKG Weather data table (per kelurahan)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS bmkg_weather (
-                    id INTEGER PRIMARY KEY,
-                    kelurahan_code VARCHAR,
-                    kelurahan_name VARCHAR,
-                    kecamatan_name VARCHAR,
-                    timestamp TIMESTAMP,
-                    local_datetime TIMESTAMP,
-                    temperature DOUBLE,
-                    humidity DOUBLE,
-                    precipitation DOUBLE,
-                    weather_code INTEGER,
-                    weather_desc VARCHAR,
-                    wind_speed DOUBLE,
-                    wind_direction VARCHAR,
-                    cloud_cover DOUBLE,
-                    visibility DOUBLE,
-                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # Create sequence for auto-increment
-            conn.execute("CREATE SEQUENCE IF NOT EXISTS pred_seq START 1")
-            conn.execute("CREATE SEQUENCE IF NOT EXISTS weather_seq START 1")
-            conn.execute("CREATE SEQUENCE IF NOT EXISTS bmkg_seq START 1")
+        try:
+            with self._get_conn() as conn:
+                # Historical predictions table
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS predictions (
+                        id INTEGER PRIMARY KEY,
+                        timestamp TIMESTAMP,
+                        latitude DOUBLE,
+                        longitude DOUBLE,
+                        rain_24h DOUBLE,
+                        tide_level DOUBLE,
+                        probability DOUBLE,
+                        risk_level VARCHAR,
+                        actual_outcome VARCHAR,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Weather data table (Open-Meteo)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS weather_data (
+                        id INTEGER PRIMARY KEY,
+                        timestamp TIMESTAMP,
+                        temperature DOUBLE,
+                        humidity DOUBLE,
+                        precipitation DOUBLE,
+                        rain DOUBLE,
+                        pressure DOUBLE,
+                        wind_speed DOUBLE,
+                        source VARCHAR DEFAULT 'open-meteo'
+                    )
+                """)
+                
+                # BMKG Weather data table (per kelurahan)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS bmkg_weather (
+                        id INTEGER PRIMARY KEY,
+                        kelurahan_code VARCHAR,
+                        kelurahan_name VARCHAR,
+                        kecamatan_name VARCHAR,
+                        timestamp TIMESTAMP,
+                        local_datetime TIMESTAMP,
+                        temperature DOUBLE,
+                        humidity DOUBLE,
+                        precipitation DOUBLE,
+                        weather_code INTEGER,
+                        weather_desc VARCHAR,
+                        wind_speed DOUBLE,
+                        wind_direction VARCHAR,
+                        cloud_cover DOUBLE,
+                        visibility DOUBLE,
+                        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Create sequences for auto-increment
+                conn.execute("CREATE SEQUENCE IF NOT EXISTS pred_seq START 1")
+                conn.execute("CREATE SEQUENCE IF NOT EXISTS weather_seq START 1")
+                conn.execute("CREATE SEQUENCE IF NOT EXISTS bmkg_seq START 1")
+        except Exception as e:
+            logger.error(f"Failed to initialize schema: {e}")
+            # Potentially the file is read-only or locked
+
     
     def log_prediction(self, lat, lon, rain_24h, tide_level, probability, risk_level):
         """Log a prediction to the database."""
