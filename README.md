@@ -1,23 +1,23 @@
-# 🌊 Sistem Peringatan Dini Banjir Samarinda
+# 🌊 Sistem Peringatan Dini Banjir Samarinda (Flood Early Warning System)
 
-**Dashboard Eksekutif & Analisis Prediktif Berbasis Machine Learning**
+**Dashboard Eksekutif & Analisis Prediktif Berbasis Hybrid AI (V8)**
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://prediksi-banjir-smr.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://prediksi-banjir-smr.streamlit.app/) [![Run Tests](https://github.com/amsopian22/prediksi-banjir-samarinda/actions/workflows/ci.yml/badge.svg)](https://github.com/amsopian22/prediksi-banjir-samarinda/actions/workflows/ci.yml)
 
-Sistem **Early Warning System (EWS)** cerdas untuk memprediksi risiko banjir di Kota Samarinda. Mengintegrasikan data cuaca *real-time*, prediksi pasang surut astronomis, dan model *Machine Learning*.
+Sistem **Early Warning System (EWS)** cerdas untuk memprediksi risiko banjir di Kota Samarinda. Mengintegrasikan data cuaca *real-time* (10 tahun historis), prediksi pasang surut astronomis, dan model *Machine Learning* terbaru (V8 Hybrid) dengan antarmuka **Command Center**.
 
 ---
 
-## 📋 Fitur Utama
+## 📋 Fitur Utama (V8 Next-Gen)
 
 | Fitur | Deskripsi |
 |-------|-----------|
-| 🕐 **Monitoring Real-time** | Memantau risiko banjir setiap jam dengan status: AMAN, WASPADA, SIAGA, AWAS |
-| 📅 **Prediksi 7 Hari** | Forecasting risiko untuk perencanaan operasional |
-| 🎛️ **Simulasi What-If** | Mode manual untuk skenario ekstrem |
-| 🗺️ **Heatmap Interaktif** | Visualisasi risiko berbasis peta dengan Layer Control |
-| 🛰️ **Validasi Satelit** | Verifikasi genangan via Sentinel-1 (SAR) |
-| 📡 **Radar Cuaca** | Konfirmasi curah hujan real-time via RainViewer |
+| 🖥️ **Command Center UI** | Dashboard modern "Dark Glassmorphism" dengan indikator status real-time terpusat |
+| 🤖 **Model Hybrid V8** | Dilatih dengan 10 tahun data (2015-2025) menggunakan algoritma XGBoost/Random Forest + SMOTE |
+| 📡 **Telegram Alerts** | Notifikasi otomatis ke smartphone pejabat saat status mencapai **SIAGA** atau **AWAS** |
+| 🛰️ **Validasi Satelit** | Verifikasi genangan banjir menggunakan citra satelit **Sentinel-1 (SAR)** |
+| 🛡️ **Operational Fronts** | Analisa 4 Sisi: Curah Hujan (Rain), Hulu (Upstream), Pasang (Tide), Tanah (Soil) |
+| 🗺️ **Peta Risiko Interaktif** | Visualisasi zona rawan banjir dinamis menggunakan GeoJSON |
 
 ---
 
@@ -25,43 +25,32 @@ Sistem **Early Warning System (EWS)** cerdas untuk memprediksi risiko banjir di 
 
 ```
 prediksi_banjir/
-├── 📁 data/                    # Dataset & logs
-│   ├── dataset_banjir_*.csv    # Data historis banjir
-│   └── feedback_log.csv        # User feedback
-├── 📁 data-baru/               # Data cuaca terbaru
-├── 📁 data-demhas/             # Data DEM (Elevasi)
-├── 📁 data-refactored/         # GeoJSON & data olahan
+├── 📁 data/                    # Dataset (DuckDB & CSV)
 ├── 📁 models/                  # Model ML artifacts
-│   ├── model_banjir_v2_advanced.pkl
-│   ├── tide_model_urs.pkl
-│   └── label_encoder.pkl
-├── 📁 scripts/                 # Utility scripts
-│   ├── train_model*.py         # Training scripts
-│   ├── evaluate_model_v2.py    # Evaluation
-│   └── zonal_stats.py          # GIS analysis
-├── 📁 docs/                    # Dokumentasi
-│   ├── Laporan_Validasi.md
-│   └── SETUP_REALTIME_DATA.md
-├── 📄 dashboard.py             # 🚀 Aplikasi Utama
+│   ├── model_banjir_v8_10years.pkl  # 🧠 MAIN MODEL (V8)
+│   └── tide_model_urs.pkl           # Model Pasang Surut
+├── 📁 scripts/                 # Utility scripts & Verification
+│   ├── system_verification_suite.py # ✅ System Health Check
+│   └── train_model_v8.py            # Training Pipeline
+├── 📁 .github/workflows/       # CI/CD Automation
+│   └── ci.yml                  # Automated Testing
+├── 📄 dashboard.py             # 🚀 Aplikasi Utama (Streamlit)
 ├── 📄 config.py                # Konfigurasi Global
-├── 📄 model_utils.py           # Inference Engine
-├── 📄 ui_components.py         # Komponen UI
-├── 📄 data_ingestion.py        # API Data Fetcher
-├── 📄 feature_extraction.py    # Feature Engineering
-├── 📄 sentinel_utils.py        # Sentinel-1 Integration
-├── 📄 tide_utils.py            # Prediksi Pasang Surut
-├── 📄 requirements.txt         # Dependencies
-├── 📄 Dockerfile               # Container config
-└── 📄 README.md                # Dokumentasi ini
+├── 📄 model_utils.py           # Inference Engine v8
+├── 📄 ui_components.py         # Modern UI System
+├── 📄 telegram_bot.py          # Bot Notifikasi
+├── 📄 sentinel_utils.py        # Analisis Satelit
+├── 📄 Dockerfile               # Production Container
+└── 📄 requirements.txt         # Python Dependencies
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Local)
 
 ### Persyaratan
-- Python 3.8+
-- Koneksi Internet
+- Python 3.10+
+- Akun Telegram (untuk fitur alert - opsional)
 
 ### Instalasi
 
@@ -69,6 +58,10 @@ prediksi_banjir/
 # Clone repository
 git clone https://github.com/amsopian22/prediksi-banjir-samarinda.git
 cd prediksi-banjir-samarinda
+
+# (Opsional) Buat Virtual Environment
+python -m venv venv
+source venv/bin/activate  # Mac/Linux
 
 # Install dependencies
 pip install -r requirements.txt
@@ -81,53 +74,48 @@ Akses di browser: `http://localhost:8501`
 
 ---
 
-## 🧠 Metodologi
+## 🐳 Menjalankan dengan Docker
 
-### Machine Learning Model (V2 Advanced)
-**Algoritma:** Random Forest Classifier
+```bash
+# Build Image
+docker build -t banjir-samarinda:v8 .
 
-**Input Features:**
-| Feature | Deskripsi |
-|---------|-----------|
-| `rain_sum_imputed` | Akumulasi curah hujan harian (mm) |
-| `rain_intensity_max` | Intensitas hujan terderas per jam (mm/h) |
-| `pasut_msl_max` | Tinggi pasang tertinggi (meter) |
-| `soil_moisture` | Kejenuhan tanah (0-1) |
-| `hujan_lag1/2` | Memori hujan 1-2 hari sebelumnya |
-
-### Prediksi Per-Jam (Rolling Window)
-Setiap jam, sistem menghitung:
-- Akumulasi hujan **24 jam terakhir**
-- Tinggi pasang **saat ini**
-
----
-
-## ⚙️ Konfigurasi
-
-Edit `config.py` untuk menyesuaikan:
-
-```python
-THRESHOLD_FLOOD_PROBABILITY = 0.40  # Sensitivitas trigger
-LOCATIONS = {...}                    # Titik pantau
-API_DECAY_FACTOR = 0.85             # Faktor hidrologi
+# Run Container
+docker run -p 8501:8501 banjir-samarinda:v8
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 🧠 Metodologi V8 (Hybrid)
 
-| Kategori | Teknologi |
-|----------|-----------|
-| Frontend | Streamlit, Plotly |
-| ML | Scikit-Learn (Random Forest) |
-| Data | Pandas, NumPy |
-| Scientific | Utide (Harmonik Pasut), Rasterio |
-| External API | Open-Meteo, RainViewer, Google Earth Engine |
+### Machine Learning Core
+**Model:** Random Forest Classifier & Regressor (Ensemble)
+**Training Data:** 2015 - 2025 (10 Tahun Data Historis)
+
+**Key Input Features:**
+1.  **Meteorologi:** Curah hujan harian, intensitas per jam, akumulasi 3 & 7 hari (Antecedent Precipitation Index).
+2.  **Hidrologi:** Tinggi muka air pasang (Tide), kelembaban tanah (Soil Moisture), aliran hulu (Upstream Flow).
+3.  **Temporal:** Musiman (Rainy Season Flag), Siklus Bulan (Lunar Cycle for Tides).
+
+### 3-Level Validation System
+Setiap prediksi diverifikasi melalui 3 lapisan:
+1.  **Statistical Check:** Ambang batas probabilitas (0.0 - 1.0).
+2.  **Physical Check:** Validasi "Dry Day Safety Cap" (memastikan tidak ada alert banjir saat hari kering).
+3.  **Remote Sensing:** Cross-check dengan data satelit Sentinel-1 jika tersedia.
+
+---
+
+## 📄 Pengembangan & Kontribusi
+
+Proyek ini menggunakan **GitHub Actions** untuk Continuous Integration (CI).
+Setiap *Push* atau *Pull Request* akan otomatis menjalankan:
+1.  `pytest` suite (Unit Tests)
+2.  `system_verification_suite.py` (Integration Tests)
 
 ---
 
 ## 📄 License
 
-MIT License - Dikembangkan oleh **Tim Diskominfo Kota Samarinda**
+MIT License - Dikembangkan oleh **Tim Diskominfo Kota Samarinda** v/ **Bidang 4 (E-Gov)**.
 
-*Untuk mendukung pengambilan keputusan berbasis data (Data-Driven Decision Making).*
+*Data-Driven Decision Making for Flood Resilience.*
