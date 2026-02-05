@@ -1500,6 +1500,10 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             [1.0, 'rgba(0, 0, 0, 0.9)']       # Ekstrem (Hitam)
         ]
 
+        # Prepare risk/safe dataframes for layers (Common for all tabs)
+        df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
+        df_safe = df_map[df_map['heatmap_intensity'] == 0].copy()
+
         # --- TAB CONTROLS ---
         tab1, tab2, tab3 = st.tabs(["🗺️ Peta Risiko", "🛣️ Cek Jalan (Baru)", "📊 Statistik Wilayah"])
         
@@ -1511,6 +1515,8 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 
             with c_layer2:
                 base_map_style = "Citra Satelit" # Default
+                show_roads = st.checkbox("🛣️ Tampilkan Jalan Utama", value=False)
+                
                 if map_engine == "Plotly (Ringan)":
                     base_map_style = st.radio("Tampilan Dasar:", ["Peta Jalan", "Citra Satelit"], horizontal=True)
     
@@ -1536,9 +1542,62 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 fig_map = go.Figure()
         
                 # Prepare risk/safe dataframes for layers
-                df_risk = df_map[df_map['heatmap_intensity'] > 0].copy()
-                df_safe = df_map[df_map['heatmap_intensity'] == 0].copy()
+                # (Already defined above)
                 
+                # --- LAYER OPTIONAL: Major Roads ---
+                if show_roads:
+                    # Load Roads (Lazy Load)
+                    @st.cache_data
+                    def load_roads_quick():
+                        import geopandas as gpd
+                        import os
+                        path = "data/samarinda_roads.parquet"
+                        if os.path.exists(path):
+                            return gpd.read_parquet(path)
+                        return None
+                    
+                    gdf_all_roads = load_roads_quick()
+                    if gdf_all_roads is not None:
+                         # Filter Major Roads only for performance
+                         major_types = ['motorway', 'trunk', 'primary', 'secondary']
+                         gdf_major = gdf_all_roads[gdf_all_roads['highway'].isin(major_types)]
+                         
+                         if not gdf_major.empty:
+                             # Plotly Scattermapbox for Lines
+                             lats = []
+                             lons = []
+                             names = []
+                             for idx, row in gdf_major.iterrows():
+                                 if row.geometry.geom_type == 'LineString':
+                                     coords = list(row.geometry.coords)
+                                     for lat, lon in coords: # Check coord order! Shapely is (x, y) = (lon, lat)
+                                         lons.append(lat) # Wait, coords is (lon, lat)
+                                         lats.append(lon)
+                                     lons.append(None) # Break line
+                                     lats.append(None)
+                                     # names.append(row['name']) # Hover per point is tricky in single trace
+                             
+                             # Correct extraction
+                             # Shapely coords are (lon, lat)
+                             x_coords = []
+                             y_coords = []
+                             for geom in gdf_major.geometry:
+                                 if geom.geom_type == 'LineString':
+                                     xs, ys = geom.xy
+                                     x_coords.extend(list(xs))
+                                     x_coords.append(None)
+                                     y_coords.extend(list(ys))
+                                     y_coords.append(None)
+                             
+                             fig_map.add_trace(go.Scattermapbox(
+                                 lat=y_coords,
+                                 lon=x_coords,
+                                 mode='lines',
+                                 line=dict(width=2, color='orange'),
+                                 name='Jalan Utama',
+                                 hoverinfo='skip' # Performance optimization
+                             ))
+
                 # Colorscale for Heatmap: Yellow (Low Risk) -> Red -> Black
                 custom_heatmap_colors = [
                     [0.0, 'rgba(255, 235, 59, 0.0)'], # Start Transparent
