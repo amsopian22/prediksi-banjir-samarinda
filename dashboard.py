@@ -22,6 +22,7 @@ import ui_components
 import sentinel_utils
 import monitoring_map  # NEW: 5 Lokasi Monitoring Map
 import telegram_bot  # NEW: Telegram Alert Integration
+from utils.report_generator import generate_pdf_report # NEW: PDF Report
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -265,6 +266,24 @@ if spatial_extractor:
                 
                 # 1. Hero Section (Command Status)
                 ui_components.render_command_center_hero(assessment, validation=val_result)
+                
+                # --- ACTION BUTTONS (Report) ---
+                c_btn1, c_btn2, c_btn3 = st.columns([1, 2, 1])
+                with c_btn2:
+                    pdf_bytes = generate_pdf_report(
+                        assessment, 
+                        {"soil_moisture": final_soil}, 
+                        selected_loc_name, 
+                        curr_tide
+                    )
+                    st.download_button(
+                        label="📄 Download Situational Report (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"Flood_Report_{selected_loc_name}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+
                 ui_components.render_status_reference()
                 
                 # --- TELEGRAM ALERT (Auto-send on SIAGA/AWAS) ---
