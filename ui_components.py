@@ -1544,7 +1544,7 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                 # Prepare risk/safe dataframes for layers
                 # (Already defined above)
                 
-                # --- LAYER OPTIONAL: Major Roads (Elevation Colored) ---
+                # --- LAYER OPTIONAL: Major Roads (REAL-TIME FLOOD RISK) ---
                 if show_roads:
                     # Load Roads (Lazy Load)
                     @st.cache_data
@@ -1563,41 +1563,68 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                          gdf_major = gdf_all_roads[gdf_all_roads['highway'].isin(major_types)].copy()
                          
                          if not gdf_major.empty:
-                             # --- Elevation-based Coloring ---
-                             # Classify roads by elevation
-                             # Low (<3m): High Risk (Red)
-                             # Medium (3-6m): Moderate Risk (Yellow)
-                             # High (>6m): Safe (Green)
+                             # --- REAL-TIME FLOOD RISK CALCULATION ---
+                             # Calculate current water level
+                             water_level_absolute = sim_tide_level - config.TIDE_DATUM_OFFSET
                              
-                             def get_elev_category(elev):
-                                 if pd.isna(elev) or elev < 3:
-                                     return 'low'
-                                 elif elev < 6:
-                                     return 'medium'
+                             # Get current rainfall contribution
+                             # Use max recent rainfall as proxy for accumulation
+                             current_rain_24h = hourly_risk_df['rain_rolling_24h'].max()
+                             rain_contrib = (current_rain_24h / 1000.0) * 1.5  # Convert mm to m, factor for poor drainage
+                             
+                             total_water_level = water_level_absolute + rain_contrib
+                             
+                             # Classify roads by CURRENT FLOOD RISK
+                             # Red: Water > Road Elevation (FLOODING NOW)
+                             # Orange: Water within 0.5m of road (HIGH RISK)
+                             # Yellow: Water within 1m of road (AT RISK)
+                             # Green: Safe (Water well below road)
+                             
+                             def get_flood_risk_category(mean_elev, water_lvl):
+                                 if pd.isna(mean_elev):
+                                     return 'unknown'
+                                 
+                                 margin = mean_elev - water_lvl
+                                 
+                                 if margin <= 0:
+                                     return 'flooding'  # Currently flooded
+                                 elif margin < 0.5:
+                                     return 'high_risk'  # About to flood
+                                 elif margin < 1.0:
+                                     return 'at_risk'  # Watch closely
                                  else:
-                                     return 'high'
+                                     return 'safe'
                              
                              elev_col = 'mean_elev' if 'mean_elev' in gdf_major.columns else None
                              
-                             elev_colors = {
-                                 'low': '#E53935',    # Red
-                                 'medium': '#FDD835', # Yellow
-                                 'high': '#43A047'    # Green
+                             flood_colors = {
+                                 'flooding': '#D32F2F',    # Dark Red - ALERT
+                                 'high_risk': '#FF6F00',   # Deep Orange
+                                 'at_risk': '#FDD835',     # Yellow
+                                 'safe': '#43A047',        # Green
+                                 'unknown': '#9E9E9E'      # Grey
                              }
-                             elev_labels = {
-                                 'low': '🔴 Jalan Rendah (<3m)',
-                                 'medium': '🟡 Jalan Sedang (3-6m)',
-                                 'high': '🟢 Jalan Tinggi (>6m)'
+                             flood_labels = {
+                                 'flooding': '🚨 TERGENANG SEKARANG',
+                                 'high_risk': '⚠️ Risiko Tinggi (<50cm)',
+                                 'at_risk': '🔶 Perlu Waspada (<1m)',
+                                 'safe': '✅ Aman',
+                                 'unknown': '❓ Data Tidak Tersedia'
                              }
                              
                              if elev_col:
-                                 gdf_major['elev_cat'] = gdf_major[elev_col].apply(get_elev_category)
+                                 gdf_major['flood_risk'] = gdf_major[elev_col].apply(
+                                     lambda x: get_flood_risk_category(x, total_water_level)
+                                 )
                              else:
-                                 gdf_major['elev_cat'] = 'medium' # Default if no elevation data
+                                 gdf_major['flood_risk'] = 'unknown'
+                             
+                             # Show flood context
+                             st.info(f"💧 **Level Air Saat Ini**: {total_water_level:.2f}m (Pasang: {water_level_absolute:.2f}m + Hujan: {rain_contrib:.2f}m)")
                              
                              # Render each category as separate trace
-                             for cat in ['low', 'medium', 'high']:
-                                 gdf_cat = gdf_major[gdf_major['elev_cat'] == cat]
+                             for cat in ['flooding', 'high_risk', 'at_risk', 'safe', 'unknown']:
+                                 gdf_cat = gdf_major[gdf_major['flood_risk'] == cat]
                                  if gdf_cat.empty:
                                      continue
                                      
@@ -1611,12 +1638,15 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
                                          y_coords.extend(list(ys))
                                          y_coords.append(None)
                                  
+                                 # Make flooded roads more visible
+                                 line_width = 5 if cat == 'flooding' else 3
+                                 
                                  fig_map.add_trace(go.Scattermapbox(
                                      lat=y_coords,
                                      lon=x_coords,
                                      mode='lines',
-                                     line=dict(width=3, color=elev_colors[cat]),
-                                     name=elev_labels[cat],
+                                     line=dict(width=line_width, color=flood_colors[cat]),
+                                     name=flood_labels[cat],
                                      hoverinfo='skip'
                                  ))
 
