@@ -27,9 +27,18 @@ def load_model() -> Dict[str, Any]:
         
     try:
         logger.info(f"Loading model from {model_path}...")
-        model = joblib.load(model_path)
+        model_pack = joblib.load(model_path)
         
-        # Load Metadata for Features
+        # Priority 1: Features from within the model pack (V8 style)
+        if isinstance(model_pack, dict) and "features" in model_pack:
+            model = model_pack["model"]
+            features = model_pack["features"]
+            version = model_pack.get("version", "Unknown")
+            logger.info(f"✅ Loaded {version} with {len(features)} features.")
+            return {"model": model, "features": features, "version": version}
+        
+        # Priority 2: Legacy Metadata for old models
+        model = model_pack
         meta_path = os.path.join(os.path.dirname(model_path), "model_banjir_v7_metadata.json")
         features = []
         if os.path.exists(meta_path):
@@ -39,7 +48,7 @@ def load_model() -> Dict[str, Any]:
         else:
             logger.warning(f"Metadata not found at {meta_path}. Features might be missing.")
             
-        return {"model": model, "features": features}
+        return {"model": model, "features": features, "version": "V7_Legacy"}
         
     except Exception as e:
         error_msg = f"Error loading model: {e}"
@@ -310,13 +319,51 @@ def predict_flood(model_pack: Dict[str, Any], input_data: Dict[str, float]) -> D
         }])
         
 
-    # Predict Depth
+    # Predict Depth or Class
     predicted_depth = 0.0
-    if hasattr(model, "predict"):
-            try:
-                predicted_depth = float(model.predict(df_input)[0])
-            except:
-                pass
+    
+    # Check if model is Classifier or Regressor
+    if hasattr(model, "predict_proba"):
+        # CLASSIFICATION MODE (Model V8)
+        try:
+            # Get probabilities: [Prob_Class0, Prob_Class1, Prob_Class2]
+            probs = model.predict_proba(df_input)[0]
+            
+            # Weighted average for smooth depth estimation (Proxy Depth)
+            # Class 0 (Aman) -> 0 cm
+            # Class 1 (Meluap) -> 30 cm (Range 20-50)
+            # Class 2 (Banjir) -> 100 cm (Range >50)
+            
+            # Handle cases where model might only have 2 classes trained (0, 1) or (0, 2)
+            classes = model.classes_
+            
+            prob_safe = 0.0
+            prob_warn = 0.0
+            prob_danger = 0.0
+            
+            for cls, prob in zip(classes, probs):
+                if cls == 0: prob_safe = prob
+                elif cls == 1: prob_warn = prob
+                elif cls == 2: prob_danger = prob
+                
+            # Formula: Depth = (P_Warn * 35) + (P_Danger * 120)
+            predicted_depth = (prob_warn * 35.0) + (prob_danger * 120.0)
+            
+            # If high confidence in danger, ensure it crosses threshold
+            if prob_danger > 0.5:
+                predicted_depth = max(predicted_depth, 80.0)
+                
+        except Exception as e:
+            logger.error(f"Prediction error (proba): {e}")
+            predicted_depth = 0.0
+            
+    elif hasattr(model, "predict"):
+        # REGRESSION MODE (Legacy V7)
+        try:
+            predicted_depth = float(model.predict(df_input)[0])
+        except Exception as e:
+            logger.error(f"Prediction error (reg): {e}")
+            predicted_depth = 0.0
             
     # Ensure non-negative
     predicted_depth = max(0.0, predicted_depth)

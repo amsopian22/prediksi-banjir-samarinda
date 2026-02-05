@@ -52,3 +52,12 @@ new-key-sentinel/
 *.duckdb
 *.duckdb.corrupted
 *.corrupted
+
+# Big Data Files
+data/*.csv
+data/dem/
+data/rainfall_history_10y.csv
+
+# Models
+models/*.pkl
+models/*.joblib

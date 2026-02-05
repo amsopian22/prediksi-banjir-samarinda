@@ -13,209 +13,614 @@ warnings.filterwarnings('ignore', message='.*feature_perturbation.*')
 
 def load_custom_css():
     """
-    Injects custom CSS for modern glassmorphism look and feel.
+    Injects custom CSS for ultra-modern premium dashboard design.
+    Features: Advanced glassmorphism, vibrant gradients, smooth animations, depth layers.
     """
     st.markdown("""
         <style>
-        /* Import Google Font: Outfit */
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        /* ============================================
+           🎨 ULTRA-MODERN FLOOD DASHBOARD v2.0
+           ============================================ */
         
+        /* Import Premium Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        
+        /* ---- ROOT VARIABLES ---- */
+        :root {
+            --bg-primary: #0a1929;
+            --bg-secondary: #0d2137;
+            --bg-card: rgba(15, 35, 60, 0.7);
+            --accent-cyan: #00d4ff;
+            --accent-blue: #0099ff;
+            --accent-green: #00ff88;
+            --accent-yellow: #ffd700;
+            --accent-red: #ff5252;
+            --text-primary: #ffffff;
+            --text-secondary: #b8c5d6;
+            --text-muted: #6b7a8a;
+        }
+        
+        /* ---- BASE RESET ---- */
         html, body, [class*="css"] {
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 400;
         }
         
-        /* Main Container Background - Subtle Dark Theme Override */
+        /* ---- MAIN BACKGROUND (SIMPLE & VISIBLE) ---- */
         .stApp {
-            background-color: #0e1117;
-            background-image: radial-gradient(circle at 50% 0%, #1c2541 0%, #0b1021 100%);
+            background: linear-gradient(180deg, #0f1f35 0%, #1a2744 50%, #0f1f35 100%) !important;
+            background-attachment: fixed !important;
         }
         
-        /* Card Styling (Glassmorphism) */
+        /* Animated wave pattern overlay */
+        .stApp::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+        
+        /* ---- TYPOGRAPHY ---- */
+        h1, h2, h3, h4 {
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.02em;
+        }
+        
+        p, span, div, label {
+            color: #b8c5d6;
+        }
+        
+        /* ---- HERO STATUS BANNER (SIMPLE & CLEAR) ---- */
+        .hero-status-banner {
+            background: linear-gradient(135deg, rgba(20, 40, 70, 0.95) 0%, rgba(15, 30, 55, 0.95) 100%);
+            border-radius: 24px;
+            padding: 48px 56px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        .status-glow-safe {
+            box-shadow: 
+                0 0 60px rgba(0, 255, 136, 0.25),
+                0 0 100px rgba(0, 255, 136, 0.15),
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255,255,255,0.15);
+            border: 2px solid rgba(0, 255, 136, 0.6);
+            animation: glow-safe 3s ease-in-out infinite;
+        }
+        
+        @keyframes glow-safe {
+            0%, 100% { box-shadow: 0 0 60px rgba(0, 255, 136, 0.25), 0 0 100px rgba(0, 255, 136, 0.15); }
+            50% { box-shadow: 0 0 80px rgba(0, 255, 136, 0.35), 0 0 120px rgba(0, 255, 136, 0.25); }
+        }
+        
+        .status-glow-warning {
+            box-shadow: 
+                0 0 60px rgba(255, 193, 7, 0.2),
+                0 0 100px rgba(255, 193, 7, 0.1),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            border: 2px solid rgba(255, 193, 7, 0.6);
+            animation: pulse-warning 2s ease-in-out infinite;
+        }
+        
+        .status-glow-danger {
+            box-shadow: 
+                0 0 80px rgba(255, 82, 82, 0.3),
+                0 0 120px rgba(255, 82, 82, 0.15),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            border: 2px solid rgba(255, 82, 82, 0.7);
+            animation: pulse-danger 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse-warning {
+            0%, 100% { box-shadow: 0 0 60px rgba(255, 193, 7, 0.2), 0 0 100px rgba(255, 193, 7, 0.1); }
+            50% { box-shadow: 0 0 80px rgba(255, 193, 7, 0.35), 0 0 120px rgba(255, 193, 7, 0.2); }
+        }
+        
+        @keyframes pulse-danger {
+            0%, 100% { box-shadow: 0 0 80px rgba(255, 82, 82, 0.3), 0 0 120px rgba(255, 82, 82, 0.15); }
+            50% { box-shadow: 0 0 100px rgba(255, 82, 82, 0.5), 0 0 150px rgba(255, 82, 82, 0.25); }
+        }
+        
+        .status-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            opacity: 0.7;
+        }
+        
+        .status-text {
+            font-size: 4rem;
+            font-weight: 900;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin: 0;
+            line-height: 1;
+            text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        .status-text-safe { color: #00ff88; text-shadow: 0 0 30px rgba(0, 255, 136, 0.5); }
+        .status-text-warning { color: #ffc107; text-shadow: 0 0 30px rgba(255, 193, 7, 0.5); }
+        .status-text-danger { color: #ff5252; text-shadow: 0 0 30px rgba(255, 82, 82, 0.5); }
+        
+        .status-subtitle {
+            font-size: 1.1rem;
+            color: #8899aa;
+            margin-top: 15px;
+            font-weight: 400;
+        }
+        
+        /* ---- GLASSMORPHISM CARDS ---- */
         .glass-card {
             background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        /* ---- METRIC CARDS (CLEAR & VISIBLE) ---- */
+        .metric-card-modern {
+            background: linear-gradient(135deg, rgba(25, 45, 75, 0.92) 0%, rgba(20, 35, 60, 0.95) 100%);
+            border-radius: 20px;
+            padding: 32px 28px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        
+        .metric-card-modern:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        
+        .metric-card-modern::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            border-radius: 24px 24px 0 0;
+            opacity: 0.9;
+        }
+        
+        .metric-card-rain::before { 
+            background: linear-gradient(90deg, #00d4ff 0%, #0099ff 50%, #00b8e6 100%);
+            box-shadow: 0 2px 12px rgba(0, 212, 255, 0.4);
+        }
+        .metric-card-tide::before { 
+            background: linear-gradient(90deg, #ffd700 0%, #ff9500 50%, #ffb800 100%);
+            box-shadow: 0 2px 12px rgba(255, 215, 0, 0.4);
+        }
+        .metric-card-soil::before { 
+            background: linear-gradient(90deg, #00ff88 0%, #00cc6a 50%, #00e67a 100%);
+            box-shadow: 0 2px 12px rgba(0, 255, 136, 0.4);
+        }
+        
+        .metric-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card-modern:hover .metric-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+        
+        .metric-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #8899aa;
+            margin-bottom: 8px;
+        }
+        
+        .metric-value-large {
+            font-size: 3.2rem;
+            font-weight: 800;
+            color: #ffffff;
+            line-height: 1;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+            letter-spacing: -0.02em;
+        }
+        
+        .metric-unit {
+            font-size: 1rem;
+            font-weight: 400;
+            color: #6b7a8a;
+            margin-left: 4px;
+        }
+        
+        .metric-status {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 12px;
+            padding: 6px 16px;
+            border-radius: 24px;
+            display: inline-block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .metric-status-good { background: rgba(0, 255, 136, 0.15); color: #00ff88; }
+        .metric-status-warning { background: rgba(255, 193, 7, 0.15); color: #ffc107; }
+        .metric-status-danger { background: rgba(255, 82, 82, 0.15); color: #ff5252; }
+        
+        /* Sparkline container */
+        .metric-sparkline {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            opacity: 0.3;
+            width: 80px;
+            height: 40px;
+        }
+        
+        /* ---- LOCATION SIDEBAR CARD ---- */
+        .location-card {
+            background: rgba(255, 255, 255, 0.03);
             border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            padding: 30px;
-            margin-bottom: 25px;
-            min-height: 200px; /* Ensure visual balance */
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 20px;
+        }
+        
+        .location-header {
             display: flex;
-            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .location-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
             justify-content: center;
+            font-size: 1.2rem;
         }
         
-        /* Typography */
-        h1, h2, h3, h4 {
-            color: white !important;
-            font-weight: 700 !important;
-            letter-spacing: -0.5px;
+        .weather-mini-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         }
         
-        p, span, div {
-            color: #e0e0e0;
+        .weather-mini-stat:last-child {
+            border-bottom: none;
         }
         
-        /* Streamlit Metrics Override */
+        /* ---- BENTO GRID LAYOUT ---- */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        @media (max-width: 768px) {
+            .bento-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* ---- MAP CONTAINER ---- */
+        .map-container {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .map-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #8899aa;
+        }
+        
+        .map-legend {
+            display: flex;
+            gap: 15px;
+            font-size: 0.75rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        /* ---- CHART CONTAINER ---- */
+        .chart-container {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 20px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .chart-period-selector {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .period-btn {
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.05);
+            color: #8899aa;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .period-btn.active {
+            background: rgba(0, 212, 255, 0.2);
+            color: #00d4ff;
+        }
+        
+        /* ---- STREAMLIT OVERRIDES ---- */
         [data-testid="stMetricValue"] {
             font-size: 2rem !important;
             font-weight: 700 !important;
             color: white !important;
         }
+        
         [data-testid="stMetricLabel"] {
-            color: #a0a0a0 !important;
-            font-size: 0.9rem !important;
+            color: #8899aa !important;
+            font-size: 0.85rem !important;
+            font-weight: 500 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+        }
+        
+        /* Sidebar styling */
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #0d1f30 0%, #0a1929 100%) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+        
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            color: #b8c5d6;
+        }
+        
+        /* Input fields */
+        .stSelectbox > div > div {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 10px !important;
+        }
+        
+        .stSlider > div > div > div {
+            background: linear-gradient(90deg, #00d4ff 0%, #0099ff 100%) !important;
+        }
+        
+        /* ---- MODERN TABS (PREMIUM PILL DESIGN) ---- */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 12px;
+            background-color: rgba(15, 30, 60, 0.45) !important;
+            padding: 10px !important;
+            border-radius: 18px !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            margin-bottom: 30px !important;
         }
 
-        /* Hero Status Banner */
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 14px !important;
+            padding: 12px 28px !important;
+            background-color: transparent !important;
+            border: 1px solid transparent !important;
+            color: #8899aa !important;
+            font-weight: 600 !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+            font-size: 0.75rem !important;
+        }
+
+        .stTabs [data-baseweb="tab"]:hover {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background-color: rgba(0, 212, 255, 0.2) !important;
+            color: #00d4ff !important;
+            font-weight: 800 !important;
+            box-shadow: 
+                0 4px 15px rgba(0, 0, 0, 0.3),
+                0 0 20px rgba(0, 212, 255, 0.15) !important;
+            border: 1px solid rgba(0, 212, 255, 0.4) !important;
+        }
+
+        .stTabs [data-baseweb="tab-highlight"] {
+            display: none !important;
+        }
+
+        /* Sidebar & Input Fixes */
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+            gap: 1.5rem;
+        }
+
+        .stSelectbox label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8899aa !important;
+            margin-bottom: 8px;
+        }
+        
+        /* Divider */
+        hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            margin: 30px 0;
+        }
+        
+        /* Legacy compatibility classes */
         .hero-banner {
             padding: 40px;
-            border-radius: 20px;
+            border-radius: 24px;
             text-align: center;
-            margin-bottom: 40px;
-            background: rgba(255, 255, 255, 0.05);
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, rgba(10, 25, 41, 0.95) 0%, rgba(13, 33, 55, 0.95) 100%);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
         }
         
         .hero-status-text {
-            font-size: 4rem; 
+            font-size: 3.5rem;
             font-weight: 800;
-            letter-spacing: 3px;
+            letter-spacing: 4px;
             text-transform: uppercase;
             margin: 0;
             line-height: 1.1;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.6);
         }
         
         .hero-subtext {
-            font-size: 1.3rem;
-            color: #ccc;
+            font-size: 1.1rem;
+            color: #8899aa;
             margin-top: 15px;
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        /* Metric Cards Redesigned */
-        .metric-card {
-            background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
-            border-radius: 16px;
-            padding: 2px; /* Border gradient wrapper */
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            height: 100%;
-            min-height: 140px;
-            transition: transform 0.2s;
         }
         
-        .metric-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .metric-inner {
-            background: #141824; /* Dark inner */
-            border-radius: 14px;
-            padding: 20px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* Center content vertically */
-            align-items: flex-start;
-        }
-
-        .metric-title {
-            color: #8b9bb4;
-            font-size: 0.85rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
-        
-        .metric-value {
-            font-size: 2.2rem;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 5px;
-        }
-        
-        .metric-sub {
-            font-size: 0.8rem;
-            color: #64748b;
-        }
-        
-        /* Pulse Animation */
-        .pulse-red {
-            animation: pulse-animation 2s infinite;
-        }
-        
-        @keyframes pulse-animation {
-            0% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.4); }
-            70% { box-shadow: 0 0 0 15px rgba(255, 82, 82, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 82, 82, 0); }
-        }
-        
-        /* Layout Utilities */
-
-        /* Bento Grid Layout */
         .grid-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             margin-bottom: 25px;
         }
+        
         .grid-item {
-            background: rgba(255, 255, 255, 0.05); /* Slightly lighter for contrast */
-            border-radius: 16px;
-            padding: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            background: linear-gradient(135deg, rgba(20, 30, 48, 0.9) 0%, rgba(15, 25, 40, 0.95) 100%);
+            border-radius: 20px;
+            padding: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .grid-header {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            color: #8b9bb4;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            color: #8899aa;
+            margin-bottom: 12px;
         }
         
         .grid-value {
-            font-size: 1.8rem;
+            font-size: 2rem;
             font-weight: 700;
-            color: white;
+            color: #ffffff;
         }
         
         .grid-sub {
-            font-size: 0.9rem;
-            color: #ccc;
-            margin-top: 5px;
+            font-size: 0.85rem;
+            color: #6b7a8a;
+            margin-top: 8px;
         }
         
-        /* Command Center Specifics */
-        .cmd-status-box {
-            background: linear-gradient(135deg, rgba(11, 16, 33, 0.95) 0%, rgba(20, 24, 36, 0.95) 100%);
-            border: 1px solid #334;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
+        .pulse-red {
+            animation: pulse-danger 1.5s ease-in-out infinite;
         }
         
-        .pulse-text {
-            animation: pulse-text-anim 2s infinite;
+        /* Hide Streamlit branding */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        /* ---- SECTION HEADERS ---- */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 40px 0 25px 0;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
-        @keyframes pulse-text-anim {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+        
+        .section-icon {
+            font-size: 1.8rem;
         }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        /* ---- BENTO GRID LAYOUT ---- */
+        .bento-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
         </style>
     """, unsafe_allow_html=True)
 
@@ -249,146 +654,253 @@ def render_status_reference():
 
 def render_command_center_hero(assessment: dict, validation: dict = None):
     """
-    New Hero Section for BPBD Command Center.
-    Focus on: Operational Status (Siaga Mobilisasi) & Aerial Intel (Validation).
+    Modern Hero Section with Neon Glow Effects.
+    Premium dashboard design with dynamic status indicators.
     """
+    import pandas as pd
+    import config
+    
     level = assessment.get("level", "UNKNOWN")
     label = assessment.get("label", "NORMAL")
+    depth_cm = assessment.get("depth_cm", 0)
     
-    # Map to Military/Command Terms
-    status_text = label
-    status_color = "#2ecc71" # Green
-    status_bg = "rgba(46, 204, 113, 0.1)"
-    pulse_class = ""
+    # Map to display values
+    status_text = "STATUS: AMAN"
+    glow_class = "status-glow-safe"
+    text_class = "status-text-safe"
+    status_icon = "✓"
     
     if level == "WASPADA":
-        status_text = "SIAGA III (WASPADA)"
-        status_color = "#f1c40f" # Yellow
-        status_bg = "rgba(241, 196, 15, 0.15)"
+        status_text = "STATUS: WASPADA"
+        glow_class = "status-glow-warning"
+        text_class = "status-text-warning"
+        status_icon = "⚠"
     elif level == "SIAGA":
-        status_text = "SIAGA II (DARURAT)"
-        status_color = "#e67e22" # Orange
-        status_bg = "rgba(230, 126, 34, 0.15)"
-        pulse_class = "pulse"
+        status_text = "STATUS: SIAGA"
+        glow_class = "status-glow-danger"
+        text_class = "status-text-danger"
+        status_icon = "!"
     elif level == "AWAS":
-        status_text = "SIAGA I (AWAS)"
-        status_color = "#e74c3c" # Red
-        status_bg = "rgba(231, 76, 60, 0.2)"
-        pulse_class = "pulse-red"
+        status_text = "STATUS: AWAS"
+        glow_class = "status-glow-danger"
+        text_class = "status-text-danger"
+        status_icon = "🚨"
 
-    # Validation Intel
-    val_status = "MENUNGGU DATA"
-    val_color = "#7f8c8d"
-    val_icon = "📡"
+    # Subtitle with reasoning
+    reasoning = assessment.get("reasoning", "Kondisi normal, tidak ada ancaman banjir terdeteksi.")
     
-    if validation and validation.get('status') == 'CONFIRMED':
-        val_status = validation.get('label', 'TERKONFIRMASI').replace("TERKONFIRMASI ", "")
-        val_color = validation.get('color', '#3498db')
-        val_icon = "🛰️" if "SATELIT" in val_status else "📡"
-
-    # Main Command Ticker
-    recommendation = assessment.get("recommendation", "Lanjutkan Pemantauan Rutin.").upper()
-
+    # Get current time in WITA for initial display
+    now_wita = pd.Timestamp.now(tz=config.TIMEZONE)
+    update_time_initial = now_wita.strftime("%d %b %Y, %H:%M:%S WITA")
+    
     st.markdown(f"""
-<div class="hero-banner {pulse_class}" style="background: {status_bg}; border: 1px solid {status_color}; text-align: left; position: relative; overflow: hidden; padding: 30px;">
-<!-- Watermark Background Removed -->
+<div class="hero-status-banner {glow_class}">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 30px;">
+        <div style="flex: 2; min-width: 300px;">
+            <div class="status-label">SISTEM PERINGATAN DINI BANJIR</div>
+            <h1 class="status-text {text_class}">{status_text}</h1>
+            <div class="status-subtitle">
+                {status_icon} {reasoning}
+            </div>
+        </div>
+        <div style="flex: 1; min-width: 200px; text-align: right;">
+            <div style="font-size: 0.75rem; letter-spacing: 2px; color: #6b7a8a; text-transform: uppercase; margin-bottom: 8px;">Estimasi Genangan</div>
+            <div style="font-size: 3rem; font-weight: 800; color: #ffffff; line-height: 1;">{depth_cm:.0f}<span style="font-size: 1.2rem; font-weight: 400; color: #6b7a8a;"> cm</span></div>
+        </div>
+    </div>
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); text-align: right;">
+        <span style="font-size: 0.8rem; color: #8899aa; letter-spacing: 0.5px;">
+            ⏰ <span id="live-clock-hero" style="color: #00d4ff; font-weight: 600;">{update_time_initial}</span>
+        </span>
+    </div>
+</div>
 
-<div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 20px;">
-<div style="flex: 2; min-width: 300px;">
-<div style="font-size: 0.8rem; letter-spacing: 2px; color: {status_color}; margin-bottom: 5px; font-weight: 600;">STATUS OPERASIONAL</div>
-<div class="hero-status-text" style="color: {status_color}; font-size: 3.5rem;">{status_text}</div>
-<div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
-<span style="background: {status_color}; color: black; padding: 4px 12px; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">REKOMENDASI SISTEM</span>
-<span style="color: white; font-family: monospace; letter-spacing: 0.5px;">{recommendation}</span>
-</div>
-</div>
-<div style="flex: 1; min-width: 200px; text-align: right; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 20px;">
-<div style="font-size: 0.8rem; letter-spacing: 1px; color: #8b9bb4;">VERIFIKASI LAPANGAN (DIGITAL)</div>
-<div style="font-size: 1.8rem; font-weight: 700; color: {val_color}; margin-top: 5px;">
-{val_icon} {val_status}
-</div>
-<div style="font-size: 0.85rem; color: #ccc; margin-top: 5px;">
-{validation.get('detail', 'Satelit/Radar belum melintas') if validation else 'Tidak ada data visual'}
-</div>
-</div>
-</div>
-</div>
+<script>
+function updateLiveClock() {{
+    const now = new Date();
+    
+    // WITA is UTC+8
+    const witaOffset = 8 * 60; // minutes
+    const localOffset = now.getTimezoneOffset(); // minutes from UTC
+    const witaTime = new Date(now.getTime() + (witaOffset + localOffset) * 60000);
+    
+    // Format: DD MMM YYYY, HH:MM:SS WITA
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const day = String(witaTime.getDate()).padStart(2, '0');
+    const month = months[witaTime.getMonth()];
+    const year = witaTime.getFullYear();
+    const hours = String(witaTime.getHours()).padStart(2, '0');
+    const minutes = String(witaTime.getMinutes()).padStart(2, '0');
+    const seconds = String(witaTime.getSeconds()).padStart(2, '0');
+    
+    const timeString = `${{day}} ${{month}} ${{year}}, ${{hours}}:${{minutes}}:${{seconds}} WITA`;
+    
+    const clockElement = document.getElementById('live-clock-hero');
+    if (clockElement) {{
+        clockElement.textContent = timeString;
+    }}
+}}
+
+// This script is now empty as the live clock is handled by st.components.html
+</script>
 """, unsafe_allow_html=True)
+    
+    # Inject live clock JavaScript using st.components.html for better reliability
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    (function() {
+        function updateClocks() {
+            const now = new Date();
+            const witaOffset = 8 * 60;
+            const localOffset = now.getTimezoneOffset();
+            const witaTime = new Date(now.getTime() + (witaOffset + localOffset) * 60000);
+            
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const day = String(witaTime.getDate()).padStart(2, '0');
+            const month = months[witaTime.getMonth()];
+            const year = witaTime.getFullYear();
+            const hours = String(witaTime.getHours()).padStart(2, '0');
+            const minutes = String(witaTime.getMinutes()).padStart(2, '0');
+            const seconds = String(witaTime.getSeconds()).padStart(2, '0');
+            
+            const timeString = `${day} ${month} ${year}, ${hours}:${minutes}:${seconds} WITA`;
+            
+            // Update both clocks in the parent document
+            const heroEl = window.parent.document.getElementById('live-clock-hero');
+            const metricsEl = window.parent.document.getElementById('live-clock-metrics');
+            
+            if (heroEl) heroEl.textContent = timeString;
+            if (metricsEl) metricsEl.textContent = timeString;
+        }
+        
+        updateClocks();
+        setInterval(updateClocks, 1000);
+    })();
+    </script>
+    """, height=0)
 
 
 def render_operational_fronts(weather: dict, upstream: dict, ocean: dict, spatial: dict):
     """
-    The 3-Fronts Tactical Grid: Meteorologis, Oseanografis, Spasial.
+    Modern 3-Metric Cards: Curah Hujan, Pasang Surut, Kelembaban Tanah.
+    Features gradient top borders and clean visual hierarchy.
     """
-    st.markdown("### ⚔️ MONITORING TERPADU (3 INDIKATOR)")
-    
-    # Prepare Front Data
-    
-    # 1. Front Langit (Meteorologis)
+    # 1. Rain Data
     rain_val = weather.get('rain_24h', 0)
     upstream_val = upstream.get('rain_recent', 0)
-    meteo_status = "AMAN"
-    meteo_color = "#2ecc71"
-    if rain_val > 50 or upstream_val > 20: 
-        meteo_status = "GANGGUAN"
-        meteo_color = "#f1c40f"
-    if rain_val > 100 or upstream_val > 50:
-         meteo_status = "KRITIS"
-         meteo_color = "#e74c3c"
+    rain_status = "Ringan"
+    rain_status_class = "metric-status-good"
+    if rain_val > 20:
+        rain_status = "Sedang"
+        rain_status_class = "metric-status-warning"
+    if rain_val > 50:
+        rain_status = "Lebat"
+        rain_status_class = "metric-status-danger"
          
-    # 2. Front Laut (Pasut)
+    # 2. Tide Data
     tide_val = ocean.get('tide_max', 0)
-    tide_status = "SURUT/AMAN"
-    tide_color = "#2ecc71"
-    if tide_val > 2.0:
-        tide_status = "PASANG TINGGI"
-        tide_color = "#f1c40f"
+    tide_status = "Stabil"
+    tide_status_class = "metric-status-good"
     if tide_val > 2.5:
-        tide_status = "OVERFLOW"
-        tide_color = "#e74c3c"
+        tide_status = "Pasang Tinggi"
+        tide_status_class = "metric-status-warning"
+    if tide_val > 3.0:
+        tide_status = "Overflow"
+        tide_status_class = "metric-status-danger"
 
-    # 3. Front Darat (Spasial)
+    # 3. Soil Data
     soil_val = spatial.get('soil_moisture', 0)
-    land_status = "KERING"
-    land_color = "#2ecc71"
-    if soil_val > 0.6:
-        land_status = "JENUH"
-        land_color = "#f1c40f"
+    # Convert to percentage for display
+    soil_pct = int(soil_val * 100) if soil_val <= 1 else int(soil_val)
+    soil_status = "Normal"
+    soil_status_class = "metric-status-good"
+    if soil_val > 0.5:
+        soil_status = "Lembab"
+        soil_status_class = "metric-status-warning"
+    if soil_val > 0.7:
+        soil_status = "Jenuh"
+        soil_status_class = "metric-status-danger"
         
+    # Use st.columns to render the three metrics separately to avoid HTML rendering issues
+    st.markdown('<div class="bento-grid">', unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+    <div class="metric-card-modern metric-card-rain">
+        <div class="metric-icon">💧</div>
+        <div class="metric-label">CURAH HUJAN</div>
+        <div class="metric-value-large">{rain_val:.1f}<span class="metric-unit">mm</span></div>
+        <div class="metric-status {rain_status_class}">{rain_status}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+    <div class="metric-card-modern metric-card-tide">
+        <div class="metric-icon">🌊</div>
+        <div class="metric-label">PASANG SURUT</div>
+        <div class="metric-value-large">{tide_val:.1f}<span class="metric-unit">m</span></div>
+        <div class="metric-status {tide_status_class}">{tide_status}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+    <div class="metric-card-modern metric-card-soil">
+        <div class="metric-icon">🌱</div>
+        <div class="metric-label">KELEMBABAN TANAH</div>
+        <div class="metric-value-large">{soil_pct}<span class="metric-unit">%</span></div>
+        <div class="metric-status {soil_status_class}">{soil_status}</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Data update timestamp info bar with live clock
+    import pandas as pd
+    import config
+    now_wita = pd.Timestamp.now(tz=config.TIMEZONE)
+    update_time_initial = now_wita.strftime("%d %b %Y, %H:%M:%S WITA")
+    
     st.markdown(f"""
-<div class="grid-container">
-<!-- FRONT LANGIT -->
-<div class="grid-item" style="border-top: 3px solid {meteo_color};">
-<div class="grid-header">
-<span>☁️ KONDISI CUACA (METEO)</span>
-</div>
-<div>
-<div class="grid-value" style="color: {meteo_color};">{meteo_status}</div>
-<div class="grid-sub">Lokal: {rain_val:.1f} mm | Hulu: {upstream_val:.1f} mm</div>
-</div>
-</div>
-<!-- FRONT LAUT -->
-<div class="grid-item" style="border-top: 3px solid {tide_color};">
-<div class="grid-header">
-<span>🌊 KONDISI PASANG SURUT</span>
-</div>
-<div>
-<div class="grid-value" style="color: {tide_color};">{tide_status}</div>
-<div class="grid-sub">Tinggi Muka Air: {tide_val:.2f} m</div>
-</div>
-</div>
-<!-- FRONT DARAT -->
-<div class="grid-item" style="border-top: 3px solid {land_color};">
-<div class="grid-header">
-<span>⛰️ KONDISI TANAH (SPASIAL)</span>
-</div>
-<div>
-<div class="grid-value" style="color: {land_color};">{land_status}</div>
-<div class="grid-sub">Kejenuhan Tanah: {soil_val:.2f} m³/m³</div>
-</div>
-</div>
-</div>
-""", unsafe_allow_html=True)
+    <div style="margin-top: 15px; padding: 12px 20px; background: rgba(0, 212, 255, 0.05); border-left: 3px solid #00d4ff; border-radius: 8px;">
+        <span style="font-size: 0.85rem; color: #b8c5d6;">
+            📡 <strong>Waktu Real-Time</strong> • <span id="live-clock-metrics" style="color: #00d4ff; font-weight: 600;">{update_time_initial}</span>
+        </span>
+    </div>
+    
+    <script>
+    function updateMetricsClock() {{
+        const now = new Date();
+        
+        // WITA is UTC+8
+        const witaOffset = 8 * 60;
+        const localOffset = now.getTimezoneOffset();
+        const witaTime = new Date(now.getTime() + (witaOffset + localOffset) * 60000);
+        
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const day = String(witaTime.getDate()).padStart(2, '0');
+        const month = months[witaTime.getMonth()];
+        const year = witaTime.getFullYear();
+        const hours = String(witaTime.getHours()).padStart(2, '0');
+        const minutes = String(witaTime.getMinutes()).padStart(2, '0');
+        const seconds = String(witaTime.getSeconds()).padStart(2, '0');
+        
+        const timeString = `${{day}} ${{month}} ${{year}}, ${{hours}}:${{minutes}}:${{seconds}} WITA`;
+        
+        const clockElement = document.getElementById('live-clock-metrics');
+        if (clockElement) {{
+            clockElement.textContent = timeString;
+        }}
+    }}
+    
+    updateMetricsClock();
+    setInterval(updateMetricsClock, 1000);
+    </script>
+    """, unsafe_allow_html=True)
 
 
 def render_bmkg_kelurahan_data():
@@ -467,7 +979,11 @@ def render_bmkg_kelurahan_data():
             for i, (_, row) in enumerate(now_df.iterrows()):
                 with cols[i]:
                     time_col = row.get('date') if 'date' in row.index else row.get('timestamp')
-                    time_str = time_col.strftime('%H:%M') if hasattr(time_col, 'strftime') else str(time_col)[:5]
+                    # Safely format time string manually to avoid NotImplementedError on some platforms
+                    if hasattr(time_col, 'hour') and hasattr(time_col, 'minute'):
+                        time_str = f"{time_col.hour:02d}:{time_col.minute:02d}"
+                    else:
+                        time_str = str(time_col)[11:16] if len(str(time_col)) >= 16 else str(time_col)[:5]
                     weather = row.get('weather_desc', 'N/A')
                     precip = row.get('precipitation', 0)
                     temp = row.get('temperature', 'N/A')
@@ -507,14 +1023,21 @@ def render_decision_support(geojson: dict, risk_df: pd.DataFrame, lat: float, lo
     """
     Tabbed Interface for Decision Support: Map (Target), Chart (Timing), Forecast (Future).
     """
-    st.markdown("### 🎯 PENDUKUNG KEPUTUSAN OPERASIONAL")
+    # Modern Section Header
+    st.markdown("""
+        <div class="section-header">
+            <span class="section-icon">🎯</span>
+            <h2 class="section-title">Pendukung Keputusan Operasional</h2>
+        </div>
+    """, unsafe_allow_html=True)
     
+    # Custom Tabs with cleaner labels
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🗺️ PETA OPERASI (TARGET AREA)", 
-        "📉 GRAFIK TREN WAKTU", 
-        "🌦️ DATA BMKG (59 KELURAHAN)",
-        "📡 MONITOR HULU (EWS)",
-        "🧠 EXPLAINABILITY (SHAP)"
+        "Peta Operasi", 
+        "Tren Waktu", 
+        "Data BMKG",
+        "Monitor Hulu",
+        "Explainability"
     ])
     
     with tab1:

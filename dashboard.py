@@ -300,9 +300,9 @@ if spatial_extractor:
                 st.markdown("---")
                 
                 # Filter Date (Global for Dashboard)
-                col_filter, _ = st.columns([1, 4])
+                col_filter, col_spacer = st.columns([2, 5])
                 with col_filter:
-                    selected_date = st.date_input("📅 Filter Tanggal Dokumen Operasi:", value=pd.Timestamp.now().date())
+                    selected_date = st.date_input("Filter Operasi:", value=pd.Timestamp.now().date())
                 
                 import json
                 geojson_data = None
@@ -399,6 +399,10 @@ if spatial_extractor:
                         "upstream_rain_6h": upstream_rain_recent if 'upstream_rain_recent' in locals() else 0,
                         "prev_flood_30d": 0,
                         "prev_meluap_30d": 0,
+                        
+                        # V8 Temporal Features
+                        "month_sin": month_sin,
+                        "month_cos": month_cos,
                         
                         # V6 Complete Features to avoid default bias
                         "drain_capacity_index": (daily_rain + lag1 + lag2 + lag3 + lag4 + lag5 + lag6) / 200.0,

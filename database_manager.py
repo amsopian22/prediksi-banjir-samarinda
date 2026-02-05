@@ -88,7 +88,7 @@ class FloodDatabase:
                         wind_direction VARCHAR,
                         cloud_cover DOUBLE,
                         visibility DOUBLE,
-                        fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        fetched_at TIMESTAMP DEFAULT CAST(CURRENT_TIMESTAMP AS TIMESTAMP)
                     )
                 """)
                 
@@ -201,13 +201,13 @@ class FloodDatabase:
                     return conn.execute(f"""
                         SELECT * FROM bmkg_weather 
                         WHERE kelurahan_code = ?
-                        AND fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+                        AND fetched_at >= CAST(CURRENT_TIMESTAMP AS TIMESTAMP) - INTERVAL '{hours} hours'
                         ORDER BY timestamp DESC
                     """, [kelurahan_code]).fetchdf()
                 else:
                     return conn.execute(f"""
                         SELECT * FROM bmkg_weather 
-                        WHERE fetched_at >= CURRENT_TIMESTAMP - INTERVAL '{hours} hours'
+                        WHERE fetched_at >= CAST(CURRENT_TIMESTAMP AS TIMESTAMP) - INTERVAL '{hours} hours'
                         ORDER BY timestamp DESC
                     """).fetchdf()
         except duckdb.CatalogException as e:
