@@ -14,15 +14,31 @@ logger = logging.getLogger(__name__)
 
 import json
 
-@st.cache_resource(ttl="1h")
-def load_model() -> Dict[str, Any]:
-    """Memuat model ML yang sudah dilatih."""
+# Check if running in Streamlit
+try:
+    from streamlit.runtime.scriptrunner import get_script_run_ctx
+    ctx = get_script_run_ctx()
+except:
+    ctx = None
+
+if ctx:
+    # Use caching only if in Streamlit
+    @st.cache_resource(ttl="1h")
+    def load_model() -> Dict[str, Any]:
+        return _load_model_logic()
+else:
+    # No caching for scripts/tests
+    def load_model() -> Dict[str, Any]:
+        return _load_model_logic()
+
+def _load_model_logic() -> Dict[str, Any]:
+    """Internal logic to load model (decoupled from Streamlit)"""
     model_path = config.MODEL_PATH
     
     if not os.path.exists(model_path):
         error_msg = f"File model '{model_path}' tidak ditemukan. Harap jalankan notebook terlebih dahulu untuk generate model."
         logger.error(error_msg)
-        st.error(error_msg)
+        if ctx: st.error(error_msg) # Only show UI error if in Streamlit
         return None
         
     try:
