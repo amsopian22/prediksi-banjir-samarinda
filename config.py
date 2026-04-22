@@ -56,7 +56,7 @@ def format_id_date(date_obj):
 # TIDE CORRECTION (Datum Separation)
 # Nilai ini dikurangkan dari prediksi pasang agar match dengan elevasi DEM
 # Est 3.0m (Gauge) - 2.8m = 0.2m (Relatif terhadap Tanah). Sangat aman.
-TIDE_DATUM_OFFSET = 3.1 # meters
+TIDE_DATUM_OFFSET = 3.4 # meters
 
 # TOLERANSI GENANGAN (Floor Tolerance)
 # Air dianggap "Bahaya" (Merah) hanya jika kedalaman > nilai ini di atas tanah (P50).

@@ -126,22 +126,30 @@ class FloodRiskSystem:
         """
         Determines the risk level based on Water Depth (cm).
         """
-        # 1. Determine Level
-        if depth_cm < config.THRESHOLD_DEPTH_WASPADA: # < 20cm
+        # 0. Prep Input Data for special override
+        rain = input_data.get('rain_sum_imputed', input_data.get('curah_hujan_mm', 0)) if input_data else 0
+
+        # 1. Determine Level with Dry Day Override
+        if rain < 10.0 and depth_cm < 40.0:
+             # FORCE NORMAL on dry days unless depth is extreme (>40cm)
+             level = FloodRiskSystem.LEVEL_NORMAL
+             label = "AMAN"
+             color = "green"
+        elif depth_cm < config.THRESHOLD_DEPTH_WASPADA: # < 25cm (updated)
              level = FloodRiskSystem.LEVEL_NORMAL
              label = "AMAN"
              color = "green"
         elif depth_cm < config.THRESHOLD_DEPTH_SIAGA: # < 50cm
              level = FloodRiskSystem.LEVEL_WASPADA
-             label = "WASPADA" # (Air Meluap / Genangan)
+             label = "WASPADA"
              color = "yellow"
         elif depth_cm < config.THRESHOLD_DEPTH_AWAS: # < 100cm
              level = FloodRiskSystem.LEVEL_SIAGA
-             label = "SIAGA" # (Banjir)
+             label = "SIAGA"
              color = "orange"
         else:
              level = FloodRiskSystem.LEVEL_AWAS
-             label = "AWAS" # (Banjir Besar)
+             label = "AWAS"
              color = "red"
              
         # 2. Reasoning (Explainability)
@@ -173,9 +181,11 @@ class FloodRiskSystem:
             if elev < 5.0:
                 reasons.append(f"Topografi Rendah ({elev}m)")
                 
-        reason_text = ", ".join(reasons) if reasons else "Kondisi Kondusif"
-        if depth_cm > 10 and not reasons:
-            reason_text = "Akumulasi Air Permukaan"
+        reason_text = ", ".join(reasons) if reasons else "Cuaca Cerah & Kondusif"
+        if level == FloodRiskSystem.LEVEL_NORMAL:
+            reason_text = "Cerah (Tidak Ada Potensi Banjir)"
+        elif depth_cm > 10 and not reasons:
+            reason_text = "Akumulasi Air Permukaan Ringan"
         
         # 3. Recommendations
         recommendation = ""
