@@ -1474,15 +1474,15 @@ def render_map_simulation(geojson_data: dict, hourly_risk_df: pd.DataFrame, lat:
             # Base Logic
             if elev < adj_tide:
                 # OVERFLOW CONDITION
-                if sim_rain < 5.0:
-                    # Dry Day Dampener: High Tide without Rain usually just fills channels
-                    return 0.6, "WASPADA (PASANG)", f"Genangan {depth*100:.0f} cm"
+                if sim_rain < 10.0:
+                    # Dry Day Dampener: High Tide without Heavy Rain usually just fills channels
+                    return 0.4, "WASPADA (PASANG)", f"Genangan {depth*100:.0f} cm"
                 else:
                     # Wet Day: True Flood Risk
                     return 1.0, "BAHAYA (TENGGELAM)", f"Banjir {depth*100:.0f} cm"
-            elif elev < (adj_tide + 0.5):
-                return 0.7 if sim_rain > 20 else 0.4, "SIAGA (RISIKO TINGGI)", "Hampir Meluap"
-            elif elev < (adj_tide + 1.0):
+            elif elev < (adj_tide + 0.3):
+                return 0.7 if sim_rain > 30 else 0.4, "SIAGA (RISIKO TINGGI)", "Hampir Meluap"
+            elif elev < (adj_tide + 0.6):
                 return 0.3, "WASPADA (RISIKO)", "Belum Tergenang"
             else:
                 return 0.0, "AMAN", "Kering"

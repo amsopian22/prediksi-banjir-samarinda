@@ -103,8 +103,8 @@ class FloodValidator:
            info = image.reduceRegion(reducer=ee.Reducer.mean(), geometry=point, scale=10).getInfo()
            vh_val = info.get('VH', 0)
            
-           # Threshold: Water is dark in Radar (VH < -18)
-           is_flooded = vh_val < -18.0 
+           # Threshold: Water is dark in Radar (VH < -20)
+           is_flooded = vh_val < -20.0 
            
            return {
                 "detected": is_flooded,
