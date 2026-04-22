@@ -119,7 +119,7 @@ class FloodRiskSystem:
     LEVEL_SIAGA = "SIAGA"
     LEVEL_AWAS = "AWAS"
     
-    VERSION = "2.1" # Force cache update
+    VERSION = "2.2" # Force cache update to clear old thresholds
     
     @staticmethod
     def get_risk_assessment(depth_cm: float, input_data: Dict[str, float] = None) -> Dict[str, Any]:
